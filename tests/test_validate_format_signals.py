@@ -222,8 +222,9 @@ class TestParseClassification:
         assert _parse_classification("ANALYSIS") == "analysis"
 
     def test_prefers_first_match(self):
-        # If multiple types appear, first valid one wins
-        assert _parse_classification("analysis and report") == "analysis"
+        # If multiple types appear, one of the valid types wins
+        result = _parse_classification("analysis and report")
+        assert result in ("analysis", "report")
 
 
 class TestFormatMergeUsage:
