@@ -3,8 +3,11 @@
 from cache import AsyncTTLCache
 from providers import llm
 
-# Module-level cache instance (24h TTL for company names)
+# Module-level cache instance (24h TTL for company names).
+# Cache key includes the model so cheap and deep depths don't share names.
 _company_cache = AsyncTTLCache(ttl_seconds=86400)
+
+_DEFAULT_MODEL = "deepseek/deepseek-v4-flash:nitro"
 
 _PROMPT_TEMPLATE = """Given the company domain '{domain}', extract all common name variations used to refer to this company in news articles and public discourse.
 
@@ -38,24 +41,30 @@ def _extract_stem(domain: str) -> str:
     return domain
 
 
-async def get_names(company_domain: str) -> tuple[list[str], dict]:
+async def get_names(
+    company_domain: str, model: str | None = None
+) -> tuple[list[str], dict]:
     """Get company name variations from a domain.
 
     Args:
         company_domain: Company domain (e.g., "meta.com")
+        model: Optional model override. Defaults to flash, which is sufficient
+            for this task and shared across depths via the 24h cache.
 
     Returns:
         (names_list, usage_dict) where names_list always includes the domain stem.
-        Cached for 24 hours.
+        Cached for 24 hours per (stem, model).
     """
     domain = company_domain.strip().lower()
     stem = _extract_stem(domain)
+    chosen_model = model or _DEFAULT_MODEL
 
     async def _fetch() -> tuple[list[str], dict]:
         try:
-            model = "deepseek/deepseek-v4-flash:nitro"
             prompt = _PROMPT_TEMPLATE.format(domain=domain)
-            text, usage = await llm.call(model=model, max_tokens=256, prompt=prompt)
+            text, usage = await llm.call(
+                model=chosen_model, max_tokens=256, prompt=prompt
+            )
 
             # Parse JSON array from response
             names = _parse_name_list(text, stem)
@@ -64,8 +73,8 @@ async def get_names(company_domain: str) -> tuple[list[str], dict]:
             # Fallback to stem-only on any LLM failure
             return [stem], {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
-    # Use cache key based on stem (different TLDs with same stem share cache)
-    cache_key = f"company_names:{stem}"
+    # Cache key scoped by (stem, model) so depth-routed models don't collide.
+    cache_key = f"company_names:{stem}:{chosen_model}"
     result = await _company_cache.get_or_compute(cache_key, _fetch)
     return result
 

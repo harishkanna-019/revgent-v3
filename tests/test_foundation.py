@@ -644,3 +644,128 @@ class TestBuildAnswers:
             "source_url",
         }
         assert set(a["timing"].keys()) >= {"happened_at", "statement"}
+
+    def test_confidence_high_when_multi_source_hard_fact(self):
+        events = [
+            {
+                "headline": "H1",
+                "description": "D1",
+                "topic": "layoffs",
+                "date": "2026-01-16",
+                "source_name": "reuters.com",
+                "source_url": "https://reuters.com/a",
+                "content_type": "novel_fact",
+            },
+            {
+                "headline": "H2",
+                "description": "D2",
+                "topic": "layoffs",
+                "date": "2026-01-15",
+                "source_name": "bloomberg.com",
+                "source_url": "https://bloomberg.com/a",
+                "content_type": "report",
+            },
+        ]
+        a = build_answers(events, ["layoffs"])[0]
+        assert a["validity"]["confidence"] == "high"
+        assert a["confirmation"]["is_confirmed"] is True
+
+    def test_confidence_medium_when_single_hard_fact(self):
+        events = [
+            {
+                "headline": "H",
+                "description": "D",
+                "topic": "layoffs",
+                "date": "2026-01-16",
+                "source_name": "reuters.com",
+                "source_url": "https://reuters.com/a",
+                "content_type": "novel_fact",
+            }
+        ]
+        a = build_answers(events, ["layoffs"])[0]
+        assert a["validity"]["confidence"] == "medium"
+        assert a["confirmation"]["is_confirmed"] is True
+
+    def test_confidence_low_when_no_hard_fact(self):
+        events = [
+            {
+                "headline": "H",
+                "description": "D",
+                "topic": "layoffs",
+                "date": "2026-01-16",
+                "source_name": "blog.com",
+                "source_url": "https://blog.com/a",
+                "content_type": "analysis",
+            }
+        ]
+        a = build_answers(events, ["layoffs"])[0]
+        assert a["validity"]["confidence"] == "low"
+        assert a["confirmation"]["is_confirmed"] is False
+
+    def test_hard_facts_sort_before_analysis(self):
+        events = [
+            {
+                "headline": "Analysis",
+                "description": "D-analysis",
+                "topic": "layoffs",
+                "date": "2026-01-20",
+                "source_name": "blog.com",
+                "source_url": "u1",
+                "content_type": "analysis",
+            },
+            {
+                "headline": "Hard Fact",
+                "description": "D-fact",
+                "topic": "layoffs",
+                "date": "2026-01-10",
+                "source_name": "reuters.com",
+                "source_url": "u2",
+                "content_type": "novel_fact",
+            },
+        ]
+        a = build_answers(events, ["layoffs"])[0]
+        # hard fact ranks first even though its date is older
+        assert a["summary"] == "D-fact"
+        assert a["valid_sources"][0]["source_url"] == "u2"
+
+    def test_most_recent_date_within_bucket(self):
+        events = [
+            {
+                "headline": "Older",
+                "description": "D-old",
+                "topic": "layoffs",
+                "date": "2026-01-10",
+                "source_name": "a",
+                "source_url": "u-old",
+                "content_type": "novel_fact",
+            },
+            {
+                "headline": "Newer",
+                "description": "D-new",
+                "topic": "layoffs",
+                "date": "2026-01-20",
+                "source_name": "b",
+                "source_url": "u-new",
+                "content_type": "novel_fact",
+            },
+        ]
+        a = build_answers(events, ["layoffs"])[0]
+        # Most recent within hard-fact bucket
+        assert a["summary"] == "D-new"
+        assert a["timing"]["happened_at"] == "2026-01-20"
+
+    def test_source_name_falls_back_to_url_host(self):
+        events = [
+            {
+                "headline": "H",
+                "description": "D",
+                "topic": "layoffs",
+                "date": "2026-01-10",
+                "source_name": "",  # missing
+                "source_url": "https://www.reuters.com/article/1",
+                "content_type": "novel_fact",
+            }
+        ]
+        a = build_answers(events, ["layoffs"])[0]
+        assert a["confirmation"]["source_name"] == "reuters.com"
+        assert a["valid_sources"][0]["source_name"] == "reuters.com"

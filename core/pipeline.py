@@ -63,7 +63,10 @@ async def run(
             )
 
         # ── Resolve company names once (used by stop protocol) ──
-        company_names, _ = await company.get_names(ctx.company)
+        company_names, _ = await company.get_names(
+            ctx.company,
+            model=ctx.policy.model_for_task("keyword_generation"),
+        )
 
         # ── Process each topic ──
         for topic_name in ctx.topics:
@@ -270,6 +273,11 @@ async def run(
             # ═══════════════════════════════════════════════
             _emit(StageStart(stage="format_route", count=valid_count))
 
+            # First pass: classify every validation result into a lane decision.
+            # Collect event-lane candidates that need LLM formatting (standard/deep).
+            pending: list[tuple[int, LaneDecision, dict]] = []
+            to_format: list[dict] = []
+
             for val_result in validation_results:
                 if isinstance(val_result, BaseException):
                     continue
@@ -289,21 +297,49 @@ async def run(
                 fact_check_raw = result["fact_check_raw"]
                 candidate = val_result.output["original"]
 
-                # Route via classify_result
                 decision = classify_result(
                     candidate, is_valid, is_hard_fact, fact_check_raw, topic_name
                 )
 
-                # For standard/deep, replace with LLM-formatted event
                 if ctx.policy.depth != "cheap" and decision.lane == "event":
-                    from tools import format as fmt
+                    # Defer LLM-formatting to a parallel batch below.
+                    pending.append((len(to_format), decision, candidate))
+                    to_format.append(candidate)
+                else:
+                    pending.append((-1, decision, candidate))
 
-                    fmt_result = await fmt.format_one(ctx, candidate)
-                    decision = LaneDecision(
-                        lane="event",
-                        event=fmt_result.output,
-                        signal=None,
-                    )
+            # Parallel LLM format pass for event-lane candidates (standard/deep only).
+            formatted_events: list[dict | None] = [None] * len(to_format)
+            if to_format:
+                from tools import format as fmt
+
+                async def _format_one(cand: dict) -> ToolResult | BaseException:
+                    try:
+                        return await fmt.format_one(ctx, cand)
+                    except Exception as exc:
+                        return exc
+
+                format_results = await parallel(
+                    _format_one,
+                    to_format,
+                    max_workers=ctx.policy.max_workers,
+                )
+                for i, fr in enumerate(format_results):
+                    if isinstance(fr, ToolResult):
+                        formatted_events[i] = fr.output
+
+            # Second pass: apply formatted events and append in source order.
+            for fmt_idx, decision, _candidate in pending:
+                if fmt_idx >= 0:
+                    formatted = formatted_events[fmt_idx]
+                    if formatted is not None:
+                        decision = LaneDecision(
+                            lane="event",
+                            event=formatted,
+                            signal=None,
+                        )
+                    # If formatting failed (None), fall back to the raw decision
+                    # which still has decision.event from classify_result.
 
                 if decision.lane == "event" and decision.event is not None:
                     ctx.events.append(decision.event)

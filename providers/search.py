@@ -11,17 +11,21 @@ from formatting import parse_date
 
 # ── Configuration ──
 
-SEARCH_CONCURRENCY = int(os.environ.get("SEARCH_CONCURRENCY", "12"))
-SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8888")
+# Constants (compile-time, no env)
 SEARCH_TIMEOUT = 15.0  # seconds per query
 SEARCH_CACHE_TTL = 60  # seconds
 CIRCUIT_FAILURE_THRESHOLD = 2
 CIRCUIT_COOLDOWN_SECONDS = 30
 
+# Env-driven settings are resolved inside init() so tests and runtime can set
+# them after import (e.g., via .env loading or fixtures).
+
 # ── Module state ──
 
 _client: httpx.AsyncClient | None = None
 _semaphore: asyncio.Semaphore | None = None
+SEARXNG_URL: str = "http://localhost:8888"
+SEARCH_CONCURRENCY: int = 12
 
 # Circuit breaker state
 _consecutive_failures = 0
@@ -42,8 +46,14 @@ class SearchCircuitOpen(RuntimeError):
 
 
 async def init() -> None:
-    """Initialize the search client and semaphore."""
-    global _client, _semaphore
+    """Initialize the search client and semaphore.
+
+    Reads SEARXNG_URL and SEARCH_CONCURRENCY from the environment at call
+    time so tests can configure them after import.
+    """
+    global _client, _semaphore, SEARXNG_URL, SEARCH_CONCURRENCY
+    SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8888")
+    SEARCH_CONCURRENCY = int(os.environ.get("SEARCH_CONCURRENCY", "12"))
     if _client is None:
         _client = httpx.AsyncClient(timeout=SEARCH_TIMEOUT)
     if _semaphore is None:

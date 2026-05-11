@@ -31,19 +31,13 @@ async def parallel(
 
     semaphore = asyncio.Semaphore(max_workers)
 
-    async def _wrap(item: Any) -> T | BaseException:
+    async def _wrap(item: Any) -> T:
         async with semaphore:
-            try:
-                return await fn(item)
-            except BaseException as exc:
-                return exc
+            return await fn(item)
 
     tasks = [asyncio.create_task(_wrap(item)) for item in items]
+    # return_exceptions=True converts raised exceptions into return values,
+    # so one failed task does not cancel its siblings. Callers must check
+    # isinstance(result, BaseException) for each element.
     results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # asyncio.gather with return_exceptions=True returns exceptions as values,
-    # but they may be wrapped in asyncio.CancelledError etc. The _wrap
-    # function above catches BaseException and returns it, so the results
-    # should already be exception instances. However, gather may also wrap
-    # exceptions, so we flatten any ExceptionGroup or similar wrappers.
     return list(results)

@@ -147,6 +147,31 @@ class TestRequestValidation:
         # Should not be a validation error
         assert response.status_code != 422
 
+    def test_v2_company_domain_alias_accepted(self):
+        """v2-style 'company_domain' field is accepted by the request model."""
+        req = ResearchRequest.model_validate(
+            {"company_domain": "meta.com", "topics": ["layoffs"]}
+        )
+        assert req.company == "meta.com"
+
+    def test_v3_company_field_accepted(self):
+        """v3 'company' field is accepted by the request model."""
+        req = ResearchRequest.model_validate(
+            {"company": "meta.com", "topics": ["layoffs"]}
+        )
+        assert req.company == "meta.com"
+
+    def test_async_v2_company_domain_alias_accepted(self):
+        """v2-style 'company_domain' alias works on async request too."""
+        req = AsyncResearchRequest.model_validate(
+            {
+                "company_domain": "meta.com",
+                "topics": ["layoffs"],
+                "webhook_url": "https://example.com/hook",
+            }
+        )
+        assert req.company == "meta.com"
+
 
 class TestAsyncRequestValidation:
     """Async endpoint validation."""

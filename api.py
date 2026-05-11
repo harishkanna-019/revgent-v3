@@ -157,9 +157,19 @@ class ResearchResponse(BaseModel):
 
 
 class ResearchRequest(BaseModel):
-    """Synchronous research request."""
+    """Synchronous research request.
 
-    company: str = Field(..., description="Company domain (e.g., meta.com)")
+    Accepts either `company` (v3 native) or `company_domain` (v2 alias)
+    so existing Clay integrations keep working.
+    """
+
+    model_config = {"populate_by_name": True}
+
+    company: str = Field(
+        ...,
+        alias="company_domain",
+        description="Company domain (e.g., meta.com). Accepts 'company' or 'company_domain'.",
+    )
     topics: list[str] = Field(
         default_factory=list, description="List of topics to research"
     )
@@ -199,9 +209,18 @@ class ResearchRequest(BaseModel):
 
 
 class AsyncResearchRequest(BaseModel):
-    """Asynchronous research request with webhook callback."""
+    """Asynchronous research request with webhook callback.
 
-    company: str = Field(..., description="Company domain (e.g., meta.com)")
+    Accepts either `company` (v3 native) or `company_domain` (v2 alias).
+    """
+
+    model_config = {"populate_by_name": True}
+
+    company: str = Field(
+        ...,
+        alias="company_domain",
+        description="Company domain (e.g., meta.com). Accepts 'company' or 'company_domain'.",
+    )
     topics: list[str] = Field(
         default_factory=list, description="List of topics to research"
     )

@@ -22,11 +22,11 @@ from providers import llm, search, scrape
 def _render_event(ev: Event) -> str:
     """Render a pipeline event for CLI display."""
     if hasattr(ev, "stage") and hasattr(ev, "count"):
-        return f"  ▶ {ev.stage}: {ev.count} items"
+        return f"  [start] {ev.stage}: {ev.count} items"
     if hasattr(ev, "stage") and hasattr(ev, "out"):
-        return f"  ✓ {ev.stage}: {ev.out} results"
+        return f"  [end]   {ev.stage}: {ev.out} results"
     if hasattr(ev, "stage") and hasattr(ev, "item_id"):
-        return f"  • {ev.item_id[:60]:<60} → {ev.status}"  # type: ignore[union-attr]
+        return f"  - {ev.item_id[:60]:<60} -> {ev.status}"  # type: ignore[union-attr]
     if hasattr(ev, "spent"):
         return f"  $ spent=${ev.spent:.6f} remaining=${ev.remaining:.6f}"
     return f"  {ev}"
@@ -34,7 +34,7 @@ def _render_event(ev: Event) -> str:
 
 async def _main() -> None:
     parser = argparse.ArgumentParser(
-        description="Revgent v3 — Async research agent (CLI)",
+        description="Revgent v3 - Async research agent (CLI)",
     )
     parser.add_argument("domain", help="Company domain (e.g., meta.com)")
     parser.add_argument("topic", help="Research topic (e.g., layoffs)")
@@ -105,21 +105,21 @@ async def _main() -> None:
             print(f"{'=' * 60}")
 
             if response["events"]:
-                print("\n📰 Events:")
+                print("\n Events:")
                 for e in response["events"]:
-                    print(f"  • [{e['date']}] {e['headline'][:70]}")
+                    print(f"  - [{e['date']}] {e['headline'][:70]}")
                     print(f"    {e['source_name']} | {e['content_type']}")
 
             if response["signals"]:
-                print("\n📡 Signals:")
+                print("\n Signals:")
                 for s in response["signals"]:
-                    print(f"  • [{s['signal_type']}] confidence={s['confidence']}")
+                    print(f"  - [{s['signal_type']}] confidence={s['confidence']}")
                     print(f"    {s['headline'][:70]}")
 
             if response["answers"]:
-                print("\n📊 Answers:")
+                print("\n Answers:")
                 for a in response["answers"]:
-                    valid = "✅" if a["validity"]["is_valid"] else "❌"
+                    valid = "[valid]  " if a["validity"]["is_valid"] else "[invalid]"
                     print(f"  {valid} {a['topic']}: {a['summary'][:100]}")
 
     finally:

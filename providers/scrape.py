@@ -12,10 +12,13 @@ import trafilatura
 
 # ── Configuration ──
 
-SCRAPE_CONCURRENCY = int(os.environ.get("SCRAPE_CONCURRENCY", "8"))
 SCRAPE_TIMEOUT = 10.0  # seconds per page
 MAX_REDIRECTS = 5
 MIN_CONTENT_LENGTH = 80
+
+# Env-driven settings are resolved inside init() so tests and runtime can set
+# them after import.
+SCRAPE_CONCURRENCY: int = 8
 
 # Error page markers that trigger quality gate rejection
 ERROR_MARKERS = frozenset(
@@ -204,8 +207,13 @@ def _passes_quality_gate(text: str) -> bool:
 
 
 async def init() -> None:
-    """Initialize the scrape client and semaphore."""
-    global _client, _semaphore
+    """Initialize the scrape client and semaphore.
+
+    Reads SCRAPE_CONCURRENCY from the environment at call time so tests can
+    configure it after import.
+    """
+    global _client, _semaphore, SCRAPE_CONCURRENCY
+    SCRAPE_CONCURRENCY = int(os.environ.get("SCRAPE_CONCURRENCY", "8"))
     if _client is None:
         _client = httpx.AsyncClient(
             timeout=httpx.Timeout(SCRAPE_TIMEOUT),
