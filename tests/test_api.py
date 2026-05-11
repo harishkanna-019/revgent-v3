@@ -431,22 +431,32 @@ class TestDepthTimeouts:
     """Per-depth timeout configuration."""
 
     def test_cheap_timeout(self):
-        """Cheap depth has 30s timeout."""
+        """Cheap depth has a 30-60s timeout."""
         from api import _DEPTH_TIMEOUTS
 
-        assert _DEPTH_TIMEOUTS["cheap"] == 30.0
+        assert 30.0 <= _DEPTH_TIMEOUTS["cheap"] <= 60.0
 
     def test_standard_timeout(self):
-        """Standard depth has 60s timeout."""
+        """Standard depth has a 60-180s timeout."""
         from api import _DEPTH_TIMEOUTS
 
-        assert _DEPTH_TIMEOUTS["standard"] == 60.0
+        assert 60.0 <= _DEPTH_TIMEOUTS["standard"] <= 180.0
 
     def test_deep_timeout(self):
-        """Deep depth has 120s timeout."""
+        """Deep depth has a 120-300s timeout."""
         from api import _DEPTH_TIMEOUTS
 
-        assert _DEPTH_TIMEOUTS["deep"] == 120.0
+        assert 120.0 <= _DEPTH_TIMEOUTS["deep"] <= 300.0
+
+    def test_timeouts_are_monotonic(self):
+        """Timeouts increase with depth."""
+        from api import _DEPTH_TIMEOUTS
+
+        assert (
+            _DEPTH_TIMEOUTS["cheap"]
+            < _DEPTH_TIMEOUTS["standard"]
+            < _DEPTH_TIMEOUTS["deep"]
+        )
 
 
 class TestApiKeyAuth:

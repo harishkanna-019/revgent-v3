@@ -21,11 +21,24 @@ Examples:
 - "earnings report Q1 2026" → earnings
 """
 
-_KEYWORD_PROMPT = """Extract 5-10 relevant search keywords for finding news articles about {company} related to: {topic}
+_KEYWORD_PROMPT = """List 8-15 short, GENERIC keywords or phrases that journalists commonly use
+when writing about the topic below. These keywords are used to check whether
+an article is actually about this topic.
 
-Return ONLY a JSON array of strings. Examples:
-- ["layoffs", "job cuts", "workforce reduction", "hiring freeze", " restructuring"]
-- ["earnings", "revenue", "profit", "quarterly results", "financial report"]
+Topic: {topic}
+
+Rules:
+- Do NOT include the company name in any keyword. The keyword "layoffs" is good;
+  "acme corp layoffs" is bad.
+- Each keyword must be a literal phrase a news article would actually contain
+  ("cut jobs", "axed", "workforce reduction"), not a query ("acme layoffs news").
+- Cover synonyms, related actions, and adjacent industry vocabulary.
+- Return ONLY a JSON array of lowercase strings.
+
+Examples:
+- Topic "layoffs" -> ["layoffs", "laid off", "job cuts", "cut jobs", "workforce reduction", "headcount reduction", "restructuring", "downsizing", "redundancies", "hiring freeze", "reduce staff", "axed jobs", "cost cutting", "rightsizing"]
+- Topic "earnings" -> ["earnings", "revenue", "profit", "loss", "quarterly results", "q1", "q2", "q3", "q4", "financial results", "ebitda", "guidance", "missed estimates", "beat estimates"]
+- Topic "funding" -> ["funding", "raised", "series a", "series b", "series c", "seed round", "valuation", "investors", "venture capital", "investment round"]
 """
 
 
@@ -63,13 +76,14 @@ async def analyze(ctx: RunContext) -> ToolResult:
             simplified = topic.strip().lower()
 
     # ── Keywords ──
-    company = ctx.company.strip().lower()
-    cache_key = f"keywords:{company}:{simplified}"
+    # Keywords are now topic-only (no company prefix), so the cache key is
+    # global across companies and depths. Massive cost saving on batches.
+    cache_key = f"keywords:{simplified}"
 
     async def _fetch_keywords() -> tuple[list[str], dict]:
         model = ctx.policy.model_for_task("keyword_generation")
-        prompt = _KEYWORD_PROMPT.format(company=company, topic=simplified)
-        text, usage = await llm.call(model=model, max_tokens=128, prompt=prompt)
+        prompt = _KEYWORD_PROMPT.format(topic=simplified)
+        text, usage = await llm.call(model=model, max_tokens=192, prompt=prompt)
 
         keywords = _parse_keyword_list(text)
         return keywords, usage

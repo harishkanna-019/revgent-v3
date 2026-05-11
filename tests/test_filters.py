@@ -75,6 +75,51 @@ class TestDedup:
 
 
 class TestStopProtocol:
+    def test_keyword_match_handles_punctuation(self):
+        """Hyphens, em-dashes, and adjacent punctuation should not block match.
+
+        Real headlines write 'cost-cutting blitz', 'AI-driven layoffs',
+        'reduce its head-count'. Literal substring matching against the
+        keyword 'cost cutting' / 'headcount' / 'layoffs' must still hit.
+        """
+        results = [
+            {
+                "title": "Houston Auto Giant Axes Nearly 700 Jobs In Cost-Cutting Blitz",
+                "url": "https://example.com/group1-cuts",
+                "content": "Group 1 Automotive said today that it will reduce headcount across U.S. dealerships.",
+                "published_date": _30_DAYS_AGO,
+            }
+        ]
+        filtered = apply_stop_protocol(
+            results,
+            topic="layoff",
+            company_names=["group 1 automotive"],
+            min_days=0,
+            max_days=90,
+            topic_keywords=["layoffs", "cost cutting", "headcount"],
+        )
+        assert len(filtered) == 1
+
+    def test_keyword_match_handles_plural_suffix(self):
+        """'layoff' singular should match 'layoffs' plural via word-prefix."""
+        results = [
+            {
+                "title": "Spirit Airlines shutdown triggers nearly 5,000 layoffs",
+                "url": "https://example.com/spirit",
+                "content": "...",
+                "published_date": _30_DAYS_AGO,
+            }
+        ]
+        filtered = apply_stop_protocol(
+            results,
+            topic="layoff",
+            company_names=["spirit"],
+            min_days=0,
+            max_days=90,
+            topic_keywords=["layoff"],
+        )
+        assert len(filtered) == 1
+
     def test_all_pass(self):
         """Result that passes all stages."""
         results = [

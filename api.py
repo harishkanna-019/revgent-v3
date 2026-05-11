@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import logging
 import os
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -20,17 +22,27 @@ from pydantic import BaseModel, Field, field_validator
 from core.context import RunContext
 from core.depth import ResearchDepthPolicy
 from core.pipeline import run
-from providers import llm, search, scrape
+from providers import llm, scrape, search
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s | %(message)s",
+)
+logger = logging.getLogger("revgent.api")
 
 
 # ── Configuration ──
 
 ABSOLUTE_MAX_COST = float(os.environ.get("ABSOLUTE_MAX_COST", "5.0"))
 
+# Per-depth wall-clock timeout. Scrape of 5 sites + 5 parallel validates +
+# 5 parallel formats can easily eat 60s when news sites are slow. Generous
+# numbers - the pipeline checks budget between stages and returns partial
+# results if it runs out anyway.
 _DEPTH_TIMEOUTS = {
-    "cheap": 30.0,
-    "standard": 60.0,
-    "deep": 120.0,
+    "cheap": 45.0,
+    "standard": 120.0,
+    "deep": 240.0,
 }
 
 # Optional shared-secret auth. If REVGENT_API_KEY is set, /research and
@@ -390,6 +402,28 @@ async def research_clay(
     so Clay can map columns directly without nested-path expressions.
     """
     _check_auth(x_api_key)
+    request_id = uuid.uuid4().hex[:8]
+    t0 = time.monotonic()
+    logger.info(
+        "clay request rid=%s company=%r topics=%r depth=%s max_cost=%s",
+        request_id,
+        req.company,
+        req.topics,
+        req.depth,
+        req.max_cost,
+    )
+    # Track every pipeline stage so empty results are explainable.
+    stage_trace: list[dict[str, Any]] = []
+
+    def _trace(event: Any) -> None:
+        # Capture only StageEnd events with their counts to keep this cheap.
+        stage = getattr(event, "stage", None)
+        if stage is None:
+            return
+        out = getattr(event, "out", None)
+        if out is not None:
+            stage_trace.append({"stage": stage, "out": out})
+
     policy = ResearchDepthPolicy.from_request(req.depth, max_cost=req.max_cost)
     ctx = RunContext(
         policy=policy,
@@ -399,11 +433,26 @@ async def research_clay(
         date_max=req.date_max,
     )
     timeout = _DEPTH_TIMEOUTS.get(req.depth, 30.0)
-    full = await run(ctx, timeout_seconds=timeout)
+    try:
+        full = await run(ctx, emit=_trace, timeout_seconds=timeout)
+    except Exception as exc:
+        logger.exception("clay request rid=%s failed: %s", request_id, exc)
+        raise
 
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
     events = full.get("events", [])
     signals = full.get("signals", [])
     answers = full.get("answers", [])
+    logger.info(
+        "clay response rid=%s elapsed_ms=%d events=%d signals=%d cost=%.6f tokens=%d trace=%s",
+        request_id,
+        elapsed_ms,
+        len(events),
+        len(signals),
+        full.get("cost", {}).get("total_cost", 0.0),
+        full.get("usage", {}).get("total_tokens", 0),
+        stage_trace,
+    )
     primary_answer = answers[0] if answers else {}
     primary_event = events[0] if events else {}
     primary_signal = signals[0] if signals else {}
@@ -428,6 +477,10 @@ async def research_clay(
         "signal_confidence": float(primary_signal.get("confidence", 0.0)),
         "total_cost_usd": float(full.get("cost", {}).get("total_cost", 0.0)),
         "total_tokens": int(full.get("usage", {}).get("total_tokens", 0)),
+        # Diagnostics for empty / unexpected results.
+        "request_id": request_id,
+        "elapsed_ms": elapsed_ms,
+        "stage_trace": stage_trace,
         # Full payload still available if Clay wants to drill into arrays
         "events": events,
         "signals": signals,

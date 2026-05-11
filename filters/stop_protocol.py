@@ -1,5 +1,6 @@
 """Four-stage stop protocol filter — pure sync function."""
 
+import re
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
@@ -52,12 +53,45 @@ def _is_excluded_domain(url: str) -> bool:
     return False
 
 
+# Word characters preserved, everything else collapsed to a single space.
+# This lets "cost cutting" match "cost-cutting" and "AI-driven layoffs" match
+# "AI driven layoffs", which is what we want for journalistic copy that's
+# inconsistent with hyphenation and punctuation.
+_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _normalize(text: str) -> str:
+    """Lowercase and collapse any non-alphanumeric runs to a single space."""
+    return _NORMALIZE_RE.sub(" ", text.lower()).strip()
+
+
 def _matches_keywords(text: str, keywords: list[str]) -> bool:
-    """Check if any keyword appears in the text (case-insensitive)."""
+    """Check if any keyword appears in the text (case- and punctuation-insensitive).
+
+    Both the source text and each keyword are normalized: lowercased, with
+    every non-alphanumeric run collapsed to a single space. So:
+      "Houston Auto Giant Axes Nearly 700 Jobs In Cost-Cutting Blitz"
+      matches keyword "cost cutting".
+    """
     if not text or not keywords:
         return False
-    text_lower = text.lower()
-    return any(kw.lower() in text_lower for kw in keywords)
+    text_norm = f" {_normalize(text)} "
+    for kw in keywords:
+        kw_norm = _normalize(kw)
+        if not kw_norm:
+            continue
+        if " " in kw_norm:
+            # Multi-token phrase: match the normalized form as-is.
+            if kw_norm in text_norm:
+                return True
+        else:
+            # Single token: word-prefix match so "layoff" hits "layoffs",
+            # "axe" hits "axed", "cut" hits "cuts" / "cutting". This is
+            # liberal on purpose - the LLM validation stage downstream is
+            # the real filter; this gate only needs decent recall.
+            if f" {kw_norm}" in text_norm:
+                return True
+    return False
 
 
 def _parse_date_for_comparison(date_str: str) -> datetime | None:
