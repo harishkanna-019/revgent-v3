@@ -4,16 +4,27 @@ from core.context import RunContext
 from core.types import ToolResult
 from providers import llm
 
-_RELEVANCE_PROMPT = """You are evaluating whether a news article is specifically about a company.
+_RELEVANCE_PROMPT = """You are evaluating whether a news article is specifically about a company AS THE SUBJECT.
 
 Company: {company}
 Article title: {title}
 Article content: {content}
 
-Is this article specifically about {company}? Answer with exactly one word:
-- YES: The article is clearly about {company}
-- NO: The article is not about {company} (mentions them only in passing, or is about a different company)
-- UNCERTAIN: You cannot tell if it's about {company}
+A YES answer requires that the article is about something happening TO or AT {company} -
+for example: their layoffs, their hiring, their earnings, their product launches,
+their leadership changes, their funding, their legal issues, their acquisitions.
+
+A NO answer applies if:
+- The article only cites a study or research BY {company} but is not about {company} itself
+- {company} is only mentioned as a competitor or comparison
+- {company} is mentioned in passing or as one of many companies in a list
+- The article is about a different company that happens to mention {company}
+- The article is general industry commentary that references {company}
+
+Answer with exactly one word:
+- YES: The article's main subject is {company} as a company
+- NO: {company} is not the primary subject
+- UNCERTAIN: You cannot tell
 
 Your answer must be exactly YES, NO, or UNCERTAIN."""
 

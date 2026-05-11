@@ -333,6 +333,10 @@ async def run(
                 if fmt_idx >= 0:
                     formatted = formatted_events[fmt_idx]
                     if formatted is not None:
+                        # Ensure topic is stamped (defence in depth - format_one
+                        # should already have done this).
+                        if not formatted.get("topic"):
+                            formatted["topic"] = topic_name
                         decision = LaneDecision(
                             lane="event",
                             event=formatted,
@@ -342,6 +346,9 @@ async def run(
                     # which still has decision.event from classify_result.
 
                 if decision.lane == "event" and decision.event is not None:
+                    # Final safety: ensure every appended event has a topic.
+                    if not decision.event.get("topic"):
+                        decision.event["topic"] = topic_name
                     ctx.events.append(decision.event)
                 elif decision.lane == "signal" and decision.signal is not None:
                     ctx.signals.append(decision.signal)

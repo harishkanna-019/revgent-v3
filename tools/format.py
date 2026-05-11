@@ -95,8 +95,14 @@ async def format_one(ctx: RunContext, candidate: dict) -> ToolResult:
 
     total_usage = _merge_usage(summary_usage, classification_usage)
 
-    # Build event dict
+    # Build event dict. Stamp the current topic on the event so downstream
+    # answer_builder (which filters by event['topic']) can group correctly.
     event = format_event(candidate, summary=summary, content_type=content_type)
+    event["topic"] = (
+        ctx.topic.original
+        if ctx.topic is not None and ctx.topic.original
+        else (ctx.topics[-1] if ctx.topics else "")
+    )
     event["cost_attribution"] = 0.0  # Will be set by caller if needed
 
     ctx.record(total_usage, item_id=item_id)

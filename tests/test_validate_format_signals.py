@@ -283,6 +283,20 @@ class TestFormatOneReal:
         assert event["description"] != candidate["content"][:400]
         assert len(event["description"]) > 10
 
+    async def test_event_carries_topic(self):
+        """format_one stamps the current topic on the event dict.
+
+        Regression: without this, answer_builder filters events by topic
+        and drops every LLM-formatted event in standard/deep depth, so the
+        response shows event_count>0 but answers.is_valid=false.
+        """
+        ctx = _make_ctx("meta.com")
+        candidate = _make_candidate()
+        result = await format_one(ctx, candidate)
+
+        assert result.output["topic"] == "layoffs"
+        assert result.output["topic"] != ""
+
     async def test_concurrent_calls(self):
         """Summary and classification run concurrently (faster than sequential)."""
         ctx = _make_ctx("meta.com")
