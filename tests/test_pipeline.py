@@ -128,13 +128,21 @@ class TestPipelinePure:
 
     @skip_if_no_searxng
     async def test_cheap_depth_uses_hardcoded_queries(self):
-        """Cheap depth generates exactly 2 hardcoded queries."""
+        """Cheap depth generates 1-2 canonical-name queries (no LLM call).
+
+        Cheap depth resolves company.get_names() once and then builds
+        queries from the most canonical (spaced) variant, falling back to
+        the URL stem when no spaced variant is known. Output is always
+        capped at policy.max_queries_per_topic (=2 for cheap).
+        """
         ctx = _make_ctx(company="meta.com", topics=["layoffs"], depth="cheap")
         await run(ctx)
 
-        assert len(ctx.topic.queries) == 2
-        assert "meta.com layoffs" in ctx.topic.queries
-        assert "meta.com layoffs news" in ctx.topic.queries
+        assert 1 <= len(ctx.topic.queries) <= 2
+        # Every query should mention "layoffs" and a Meta-family name.
+        for q in ctx.topic.queries:
+            assert "layoffs" in q.lower()
+            assert any(token in q.lower() for token in ("meta", "facebook", "fb"))
 
     @skip_if_no_searxng
     async def test_budget_exhaustion_returns_partial(self):

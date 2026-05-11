@@ -16,6 +16,185 @@ from filters.signals import LaneDecision, classify_result
 from filters.stop_protocol import apply_stop_protocol
 from tools import company, queries, topic, validate
 
+# Synonym expansion for cheap-depth keyword filtering. Cheap depth runs
+# zero LLM calls before search, so we have to expand topic terms manually
+# or stop_protocol's literal keyword match drops valid headlines that
+# describe the same event with different vocabulary ("layoffs" vs.
+# "job cuts" vs. "workforce reduction"). Standard / deep paths use
+# tools.topic which does this expansion via the LLM.
+_CHEAP_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "layoffs": (
+        "layoff",
+        "layoffs",
+        "laid off",
+        "laying off",
+        "job cut",
+        "job cuts",
+        "jobs cut",
+        "cut jobs",
+        "cutting jobs",
+        "cuts jobs",
+        "cuts hundreds of jobs",
+        "cuts thousands of jobs",
+        "axes jobs",
+        "axe jobs",
+        "axed jobs",
+        "slash jobs",
+        "slashed jobs",
+        "slashes jobs",
+        "eliminate positions",
+        "eliminated positions",
+        "eliminating positions",
+        "cut positions",
+        "position cuts",
+        "role cuts",
+        "cuts roles",
+        "cut roles",
+        "headcount",
+        "head count",
+        "head-count",
+        "workforce",
+        "workforce reduction",
+        "workforce cut",
+        "workforce cuts",
+        "staff cut",
+        "staff cuts",
+        "reduce staff",
+        "reducing staff",
+        "reduce workforce",
+        "reducing workforce",
+        "reduction in force",
+        "rif",
+        "redundancies",
+        "redundancy",
+        "firing",
+        "fired",
+        "firings",
+        "mass firing",
+        "mass firings",
+        "restructuring",
+        "restructure",
+        "restructures",
+        "reorganization",
+        "reorganisation",
+        "reorganize",
+        "reorganise",
+        "downsizing",
+        "downsize",
+        "downsized",
+        "trim costs",
+        "trimming costs",
+        "cost cutting",
+        "cost-cutting",
+        "cost cuts",
+        "cost savings",
+        "cost-savings",
+        "belt tightening",
+        "belt-tightening",
+        "hiring freeze",
+        "hiring pause",
+        "rightsizing",
+        "right-sizing",
+    ),
+    "funding": (
+        "funding",
+        "funded",
+        "raised",
+        "raises",
+        "raise",
+        "series a",
+        "series b",
+        "series c",
+        "series d",
+        "seed round",
+        "venture",
+        "investment",
+        "invested",
+        "investor",
+        "valuation",
+        "valued at",
+        "capital",
+    ),
+    "earnings": (
+        "earnings",
+        "revenue",
+        "profit",
+        "loss",
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "quarterly",
+        "quarter",
+        "financial results",
+        "fiscal",
+        "ebitda",
+    ),
+    "acquisition": (
+        "acquired",
+        "acquires",
+        "acquisition",
+        "buyout",
+        "bought",
+        "merger",
+        "merging",
+        "merge",
+        "takeover",
+        "deal",
+    ),
+    "product launch": (
+        "launch",
+        "launches",
+        "launched",
+        "announces",
+        "unveils",
+        "reveals",
+        "introduces",
+        "releases",
+        "new product",
+    ),
+    "leadership": (
+        "ceo",
+        "cto",
+        "cfo",
+        "founder",
+        "chief executive",
+        "president",
+        "appointed",
+        "appoints",
+        "steps down",
+        "resigns",
+        "resignation",
+        "departure",
+        "hires",
+        "hired",
+        "executive",
+    ),
+}
+
+
+def _expand_topic_keywords(topic_name: str) -> list[str]:
+    """Expand a topic name into keyword variants for stop-protocol filtering.
+
+    Looks up the lowercase topic in _CHEAP_SYNONYMS; falls back to the raw
+    words (>=3 chars) of the topic when the topic is unknown. Always
+    includes the original topic words so familiar phrasings still match.
+    """
+    raw = topic_name.strip().lower()
+    raw_words = [w for w in raw.split() if len(w) > 2]
+
+    # Direct lookup
+    if raw in _CHEAP_SYNONYMS:
+        return [raw, *_CHEAP_SYNONYMS[raw]]
+
+    # Token-level lookup (e.g. "workforce reduction" -> tries 'reduction')
+    for token in raw_words:
+        if token in _CHEAP_SYNONYMS:
+            return [raw, *raw_words, *_CHEAP_SYNONYMS[token]]
+
+    # Fallback: just the raw words
+    return raw_words or [raw]
+
 
 async def run(
     ctx: RunContext, emit: Emit = None, timeout_seconds: float | None = None
@@ -81,10 +260,9 @@ async def run(
             _emit(StageStart(stage="topic_analysis", count=1))
 
             if ctx.policy.depth == "cheap":
-                # Cheap: regex keywords from topic words
-                keywords = [w.lower() for w in topic_name.split() if len(w) > 2]
+                # Cheap: synonym-expanded keywords from topic (no LLM call).
                 ctx.topic.simplified = topic_name.strip().lower()
-                ctx.topic.keywords = keywords
+                ctx.topic.keywords = _expand_topic_keywords(topic_name)
             else:
                 # Standard/Deep: LLM-based topic analysis
                 topic_result = await topic.analyze(ctx)
@@ -106,19 +284,41 @@ async def run(
             _emit(StageStart(stage="query_generation", count=1))
 
             if ctx.policy.depth == "cheap":
-                # Cheap: 2 hardcoded queries
-                company_stem = (
-                    ctx.company.strip()
-                    .lower()
-                    .replace("www.", "")
-                    .split("://")[-1]
-                    .split("/")[0]
-                )
+                # Cheap depth: zero-LLM query generation. Use the canonical
+                # company names resolved earlier (these include
+                # human-readable variants like "group 1 automotive" or
+                # "clearwater paper" instead of the raw URL stem). Without
+                # this, queries like "group1auto layoffs" miss every
+                # relevant article because real journalists write about
+                # "Group 1 Automotive".
                 simplified = ctx.topic.simplified
-                ctx.topic.queries = [
-                    f"{company_stem} {simplified}",
-                    f"{company_stem} {simplified} news",
-                ]
+                # Skip the bare URL stem (always the first element of
+                # company_names) when it contains no space and a longer
+                # spaced variant exists.
+                preferred = [n for n in company_names if " " in n] or company_names[:1]
+                # Fall back to the URL stem if nothing else is available.
+                if not preferred:
+                    preferred = [
+                        ctx.company.strip()
+                        .lower()
+                        .replace("www.", "")
+                        .split("://")[-1]
+                        .split("/")[0]
+                    ]
+                # Two queries per preferred name (cap at policy max).
+                generated: list[str] = []
+                for name in preferred:
+                    generated.append(f"{name} {simplified}")
+                    generated.append(f"{name} {simplified} news")
+                # Dedupe and clip to policy budget.
+                seen: set[str] = set()
+                deduped: list[str] = []
+                for q in generated:
+                    key = q.lower()
+                    if key not in seen:
+                        seen.add(key)
+                        deduped.append(q)
+                ctx.topic.queries = deduped[: ctx.policy.max_queries_per_topic or 2]
             else:
                 # Standard/Deep: LLM-generated queries
                 queries_result = await queries.generate(ctx)
