@@ -4,44 +4,50 @@ from core.context import RunContext
 from core.types import ToolResult
 from providers import llm
 
-_RELEVANCE_PROMPT = """You are evaluating whether a news article is specifically about a company AS THE SUBJECT.
+_RELEVANCE_PROMPT = """You are deciding whether a news article reports on {company} directly experiencing the topic "{topic}".
 
 Company: {company}
+Topic: {topic}
 Article title: {title}
 Article content: {content}
 
-A YES answer requires that the article is about something happening TO or AT {company} -
-for example: their layoffs, their hiring, their earnings, their product launches,
-their leadership changes, their funding, their legal issues, their acquisitions.
+A YES answer requires BOTH conditions:
+1. {company} is the primary subject of the article, AND
+2. The article reports on {company} itself doing or experiencing "{topic}"
+   (e.g. {company}'s own layoffs, {company}'s own earnings, {company}'s own product launch).
 
-A NO answer applies if:
-- The article only cites a study or research BY {company} but is not about {company} itself
-- {company} is only mentioned as a competitor or comparison
-- {company} is mentioned in passing or as one of many companies in a list
-- The article is about a different company that happens to mention {company}
+A NO answer applies in any of these cases:
+- The article is about a DIFFERENT company doing "{topic}" and only mentions {company} in passing
+  (example: "Meta announces 8,000 layoffs; Anthropic also held AI talks with the White House"
+   -> answer NO when researching anthropic.com layoffs, because the layoffs are Meta's, not Anthropic's)
+- {company} appears in a multi-company news digest where only some other company is doing "{topic}"
+- {company} is cited as a researcher, study author, competitor, or comparison
 - The article is general industry commentary that references {company}
+- The article is about "{topic}" in general (e.g. "AI layoffs trend in 2026") and only namedrops {company}
 
 Answer with exactly one word:
-- YES: The article's main subject is {company} as a company
-- NO: {company} is not the primary subject
-- UNCERTAIN: You cannot tell
+- YES: {company} is the primary subject AND the article is about {company}'s own "{topic}"
+- NO: either {company} is not the primary subject, OR the topic event belongs to another company
+- UNCERTAIN: you cannot tell
 
 Your answer must be exactly YES, NO, or UNCERTAIN."""
 
-_RELEVANCE_RETRY_PROMPT = """You are evaluating whether a news article is specifically about a company.
+_RELEVANCE_RETRY_PROMPT = """You are deciding whether a news article reports on {company} directly experiencing the topic "{topic}".
 
 Company: {company}
+Topic: {topic}
 Article title: {title}
 Article content: {content}
 
-You previously said you were UNCERTAIN. Now think step by step:
-1. Does the article mention {company} in the headline or first paragraph?
-2. Is {company} the main subject or just mentioned in passing?
-3. Does the article discuss {company}'s actions, products, or news?
+You previously said you were UNCERTAIN. Think step by step:
+1. Does the headline name {company} as the actor of "{topic}"?
+2. If the article is a multi-topic news digest, is {company} the one doing "{topic}",
+   or is it some other company in a different section of the digest?
+3. Is {company} the agent of the topic event, or merely mentioned in passing?
 
-Based on this reasoning, what is your final answer? Answer with exactly one word:
-- YES: The article is clearly about {company}
-- NO: The article is not about {company}
+Final answer with exactly one word:
+- YES: The article reports on {company}'s own "{topic}"
+- NO: It does not (either different company or only a passing mention of {company})
 
 Your answer must be exactly YES or NO."""
 
@@ -108,6 +114,14 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
         Status is one of: "valid", "opinion", "not_about_company"
     """
     company = ctx.company.strip().lower() if ctx.company else ""
+    # Use the simplified topic when present; fall back to the original.
+    topic_for_prompt = ""
+    if ctx.topic is not None:
+        topic_for_prompt = (
+            (ctx.topic.simplified or ctx.topic.original or "").strip().lower()
+        )
+    if not topic_for_prompt and ctx.topics:
+        topic_for_prompt = ctx.topics[-1].strip().lower()
     title = candidate.get("title", "")
     content = candidate.get("content", "")
     url = candidate.get("url", "")
@@ -117,7 +131,7 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
 
     # ── Step 1: Relevance check ──
     relevance_prompt = _RELEVANCE_PROMPT.format(
-        company=company, title=title, content=content[:2000]
+        company=company, topic=topic_for_prompt, title=title, content=content[:2000]
     )
     relevance_text, relevance_usage = await llm.call(
         model=model, max_tokens=32, prompt=relevance_prompt
@@ -129,7 +143,10 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
     # Retry on UNCERTAIN
     if relevance == "UNCERTAIN":
         retry_prompt = _RELEVANCE_RETRY_PROMPT.format(
-            company=company, title=title, content=content[:2000]
+            company=company,
+            topic=topic_for_prompt,
+            title=title,
+            content=content[:2000],
         )
         retry_text, retry_usage = await llm.call(
             model=model, max_tokens=64, prompt=retry_prompt

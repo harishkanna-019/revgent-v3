@@ -702,6 +702,39 @@ class TestBuildAnswers:
         assert a["validity"]["confidence"] == "low"
         assert a["confirmation"]["is_confirmed"] is False
 
+    def test_novel_fact_sorts_before_report(self):
+        """novel_fact (primary news) ranks ahead of report (summary).
+
+        Regression: Bill.com case where 'BILL Q1 deep dive' (report) was
+        picked as primary over 'Bill Holdings to cut 30% of staff'
+        (novel_fact). The novel_fact is the actual news; the report is
+        a synthesis. Users expect the actual news on top.
+        """
+        events = [
+            {
+                "headline": "BILL Q1 deep dive: AI transformation drives restructuring",
+                "description": "D-report",
+                "topic": "layoff",
+                "date": "2026-05-09",
+                "source_name": "msn.com",
+                "source_url": "u-report",
+                "content_type": "report",
+            },
+            {
+                "headline": "Bill Holdings to cut 30% of staff despite earnings beat",
+                "description": "D-novel",
+                "topic": "layoff",
+                "date": "2026-05-08",
+                "source_name": "marketwatch.com",
+                "source_url": "u-novel",
+                "content_type": "novel_fact",
+            },
+        ]
+        a = build_answers(events, ["layoff"])[0]
+        # novel_fact ranks first even though the report is dated later
+        assert a["summary"] == "D-novel"
+        assert a["valid_sources"][0]["source_url"] == "u-novel"
+
     def test_hard_facts_sort_before_analysis(self):
         events = [
             {

@@ -443,6 +443,11 @@ async def research_clay(
     events = full.get("events", [])
     signals = full.get("signals", [])
     answers = full.get("answers", [])
+    # answer_builder already sorts events hard-fact-first, then by date.
+    # answers[0].valid_sources[0] is the canonical 'best' source for this
+    # response - mirror that here so primary_* fields stay consistent with
+    # answers[0] (otherwise Clay sees an analysis piece as 'primary' while
+    # the actual confirmation in answers points to a novel_fact).
     logger.info(
         "clay response rid=%s elapsed_ms=%d events=%d signals=%d cost=%.6f tokens=%d trace=%s",
         request_id,
@@ -454,7 +459,20 @@ async def research_clay(
         stage_trace,
     )
     primary_answer = answers[0] if answers else {}
-    primary_event = events[0] if events else {}
+    # Use the top valid_source from answers[0] when present - this is the
+    # quality-sorted pick rather than first-by-pipeline-order.
+    primary_sources = primary_answer.get("valid_sources") or []
+    primary_source = primary_sources[0] if primary_sources else {}
+    # Map the primary source back to its full event (by URL) for type info.
+    primary_event: dict = {}
+    if primary_source and events:
+        url = primary_source.get("source_url", "")
+        for e in events:
+            if e.get("source_url") == url:
+                primary_event = e
+                break
+    if not primary_event and events:
+        primary_event = events[0]
     primary_signal = signals[0] if signals else {}
 
     return {

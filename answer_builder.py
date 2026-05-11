@@ -3,25 +3,38 @@
 from urllib.parse import urlparse
 
 
+# Content-type ranking. Lower value sorts first. We prefer:
+#   1. novel_fact  - primary newsroom report of "X did Y"
+#   2. report      - factual summary of recent events / data
+#   3. analysis    - interpretation / commentary
+#   4. historical  - background context
+# Unknown content types sort last.
+_CONTENT_TYPE_RANK: dict[str, int] = {
+    "novel_fact": 0,
+    "report": 1,
+    "analysis": 2,
+    "historical": 3,
+}
+
+
 def _sort_key(event: dict) -> tuple[int, str]:
     """Sort key for ordering events within a topic.
 
-    Hard-fact events (content_type="novel_fact" or "report") rank first,
-    then by date descending (most recent first). "Unknown" dates rank last.
+    Primary sort: content_type rank (novel_fact > report > analysis > historical).
+    Secondary sort: date descending (most recent first).
+    "Unknown"/empty dates sink to the bottom within each content-type bucket.
     """
     content_type = (event.get("content_type") or "").lower()
-    hard_fact = content_type in ("novel_fact", "report")
-    # Lower tuple element sorts first; negate hard_fact so True (1) -> 0
-    fact_rank = 0 if hard_fact else 1
+    type_rank = _CONTENT_TYPE_RANK.get(content_type, 9)
     date = event.get("date") or ""
     if date == "Unknown" or not date:
-        # Empty / unknown dates sink to the bottom regardless of fact status
+        # Empty / unknown dates sink to the bottom regardless of type bucket.
         date_key = ""
     else:
         # ISO YYYY-MM-DD sorts lexicographically; invert via maxchar trick so
-        # the most recent date sorts first within a fact_rank bucket.
+        # the most recent date sorts first within a type bucket.
         date_key = "".join(chr(255 - ord(c)) if c.isdigit() else c for c in date)
-    return (fact_rank, date_key)
+    return (type_rank, date_key)
 
 
 def _source_name_from_url(url: str) -> str:
