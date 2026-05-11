@@ -449,6 +449,83 @@ class TestDepthTimeouts:
         assert _DEPTH_TIMEOUTS["deep"] == 120.0
 
 
+class TestApiKeyAuth:
+    """Optional X-Api-Key gating on /research and /research/async."""
+
+    def test_no_auth_when_unset(self, client):
+        """With REVGENT_API_KEY unset, requests pass without a key."""
+        # default fixture has no REVGENT_API_KEY env so this just exercises
+        # validation success path
+        response = client.post(
+            "/research",
+            json={"company": "meta.com", "topics": ["layoffs"], "depth": "cheap"},
+        )
+        # Either succeeds or pipeline runs - just not 401.
+        assert response.status_code != 401
+
+    def test_missing_key_rejected_when_required(self, monkeypatch, client):
+        """When REVGENT_API_KEY is set, missing header returns 401."""
+        import api as api_module
+
+        monkeypatch.setattr(api_module, "API_KEY", "s3cr3t")
+        response = client.post(
+            "/research",
+            json={"company": "meta.com", "topics": ["layoffs"], "depth": "cheap"},
+        )
+        assert response.status_code == 401
+
+    def test_wrong_key_rejected_when_required(self, monkeypatch, client):
+        """When REVGENT_API_KEY is set, wrong header returns 401."""
+        import api as api_module
+
+        monkeypatch.setattr(api_module, "API_KEY", "s3cr3t")
+        response = client.post(
+            "/research",
+            json={"company": "meta.com", "topics": ["layoffs"], "depth": "cheap"},
+            headers={"X-Api-Key": "nope"},
+        )
+        assert response.status_code == 401
+
+    def test_correct_key_accepted(self, monkeypatch, client):
+        """Correct X-Api-Key passes the gate (downstream may still 5xx)."""
+        import api as api_module
+
+        monkeypatch.setattr(api_module, "API_KEY", "s3cr3t")
+        response = client.post(
+            "/research",
+            json={"company": "meta.com", "topics": ["layoffs"], "depth": "cheap"},
+            headers={"X-Api-Key": "s3cr3t"},
+        )
+        assert response.status_code != 401
+
+    def test_async_endpoint_also_gated(self, monkeypatch, client):
+        """/research/async honors the same key."""
+        import api as api_module
+
+        monkeypatch.setattr(api_module, "API_KEY", "s3cr3t")
+        response = client.post(
+            "/research/async",
+            json={
+                "company": "meta.com",
+                "topics": ["layoffs"],
+                "depth": "cheap",
+                "webhook_url": "https://example.com/hook",
+            },
+        )
+        assert response.status_code == 401
+
+    def test_clay_endpoint_also_gated(self, monkeypatch, client):
+        """/research/clay honors the same key."""
+        import api as api_module
+
+        monkeypatch.setattr(api_module, "API_KEY", "s3cr3t")
+        response = client.post(
+            "/research/clay",
+            json={"company": "meta.com", "topics": ["layoffs"], "depth": "cheap"},
+        )
+        assert response.status_code == 401
+
+
 class TestErrorResponses:
     """Error responses have actionable context."""
 

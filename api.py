@@ -7,13 +7,14 @@ Background webhook tasks tracked for graceful shutdown.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import os
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from core.context import RunContext
@@ -31,6 +32,17 @@ _DEPTH_TIMEOUTS = {
     "standard": 60.0,
     "deep": 120.0,
 }
+
+# Optional shared-secret auth. If REVGENT_API_KEY is set, /research and
+# /research/async require an `X-Api-Key` header matching it.
+API_KEY = os.environ.get("REVGENT_API_KEY", "").strip()
+
+
+def _check_auth(provided: str | None) -> None:
+    if not API_KEY:
+        return  # no auth configured
+    if not provided or not hmac.compare_digest(provided.strip(), API_KEY):
+        raise HTTPException(status_code=401, detail="invalid or missing X-Api-Key")
 
 
 # ── Pydantic models (v2-identical) ──
@@ -343,13 +355,17 @@ app = FastAPI(
 
 @app.get("/")
 async def health_check() -> dict[str, str]:
-    """Health check endpoint."""
+    """Health check endpoint. Always public."""
     return {"status": "ok", "service": "Revgent API"}
 
 
 @app.post("/research", response_model=ResearchResponse)
-async def research(req: ResearchRequest) -> dict[str, Any]:
+async def research(
+    req: ResearchRequest,
+    x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+) -> dict[str, Any]:
     """Run synchronous research and return full results."""
+    _check_auth(x_api_key)
     policy = ResearchDepthPolicy.from_request(req.depth, max_cost=req.max_cost)
     ctx = RunContext(
         policy=policy,
@@ -363,12 +379,72 @@ async def research(req: ResearchRequest) -> dict[str, Any]:
     return await run(ctx, timeout_seconds=timeout)
 
 
+@app.post("/research/clay")
+async def research_clay(
+    req: ResearchRequest,
+    x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+) -> dict[str, Any]:
+    """Clay-friendly endpoint that flattens the response for HTTP-column use.
+
+    Returns the same data as /research but with top-level convenience fields
+    so Clay can map columns directly without nested-path expressions.
+    """
+    _check_auth(x_api_key)
+    policy = ResearchDepthPolicy.from_request(req.depth, max_cost=req.max_cost)
+    ctx = RunContext(
+        policy=policy,
+        company=req.company,
+        topics=req.topics,
+        date_min=req.date_min,
+        date_max=req.date_max,
+    )
+    timeout = _DEPTH_TIMEOUTS.get(req.depth, 30.0)
+    full = await run(ctx, timeout_seconds=timeout)
+
+    events = full.get("events", [])
+    signals = full.get("signals", [])
+    answers = full.get("answers", [])
+    primary_answer = answers[0] if answers else {}
+    primary_event = events[0] if events else {}
+    primary_signal = signals[0] if signals else {}
+
+    return {
+        # Top-level scalars Clay can map straight into columns
+        "company": full.get("company", ""),
+        "topic": req.topics[0] if req.topics else "",
+        "event_count": len(events),
+        "signal_count": len(signals),
+        "is_valid": bool(primary_answer.get("validity", {}).get("is_valid", False)),
+        "confidence": primary_answer.get("validity", {}).get("confidence", "low"),
+        "summary": primary_answer.get("summary", ""),
+        "primary_headline": primary_event.get("headline")
+        or primary_signal.get("headline", ""),
+        "primary_source_url": primary_event.get("source_url")
+        or primary_signal.get("source_url", ""),
+        "primary_source_name": primary_event.get("source_name")
+        or primary_signal.get("source_name", ""),
+        "primary_date": primary_event.get("date") or primary_signal.get("date", ""),
+        "signal_type": primary_signal.get("signal_type", ""),
+        "signal_confidence": float(primary_signal.get("confidence", 0.0)),
+        "total_cost_usd": float(full.get("cost", {}).get("total_cost", 0.0)),
+        "total_tokens": int(full.get("usage", {}).get("total_tokens", 0)),
+        # Full payload still available if Clay wants to drill into arrays
+        "events": events,
+        "signals": signals,
+        "answers": answers,
+    }
+
+
 @app.post("/research/async", response_model=AsyncResearchResponse)
-async def research_async(req: AsyncResearchRequest) -> AsyncResearchResponse:
+async def research_async(
+    req: AsyncResearchRequest,
+    x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+) -> AsyncResearchResponse:
     """Start asynchronous research and return immediately.
 
     Results are POSTed to the webhook_url when complete.
     """
+    _check_auth(x_api_key)
     request_id = str(uuid.uuid4())
 
     async def _do_research() -> None:
