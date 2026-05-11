@@ -7,7 +7,7 @@ from providers import llm
 # Cache key includes the model so cheap and deep depths don't share names.
 _company_cache = AsyncTTLCache(ttl_seconds=86400)
 
-_DEFAULT_MODEL = "deepseek/deepseek-v4-flash:nitro"
+_DEFAULT_MODEL = "deepseek/deepseek-v4-flash"
 
 _PROMPT_TEMPLATE = """Given the company domain '{domain}', extract all common name variations used to refer to this company in news articles and public discourse.
 

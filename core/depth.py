@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 # Model pricing: (input_price_per_1M, output_price_per_1M) in USD
 # See OpenRouter pricing page for current rates
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
-    "deepseek/deepseek-v4-flash:nitro": (0.055, 0.11),
-    "deepseek/deepseek-v4-pro:nitro": (0.89, 1.79),
-    "moonshotai/kimi-k2.6:nitro": (2.00, 8.00),
+    "deepseek/deepseek-v4-flash": (0.055, 0.11),
+    "deepseek/deepseek-v4-pro": (0.89, 1.79),
+    "moonshotai/kimi-k2.6": (2.00, 8.00),
 }
 
 
@@ -32,7 +32,7 @@ class ResearchDepthPolicy:
         validation, fact_check, summarization, classification
         """
         return self.model_map.get(
-            task, self.model_map.get("default", "deepseek/deepseek-v4-flash:nitro")
+            task, self.model_map.get("default", "deepseek/deepseek-v4-flash")
         )
 
     def model_cost(self, model: str) -> tuple[float, float]:
@@ -68,14 +68,14 @@ class ResearchDepthPolicy:
                 "default_budget": 0.01,
                 "max_workers": 3,
                 "model_map": {
-                    "default": "deepseek/deepseek-v4-flash:nitro",
-                    "topic_simplification": "deepseek/deepseek-v4-flash:nitro",
-                    "keyword_generation": "deepseek/deepseek-v4-flash:nitro",
-                    "query_generation": "deepseek/deepseek-v4-flash:nitro",
-                    "validation": "deepseek/deepseek-v4-flash:nitro",
-                    "fact_check": "deepseek/deepseek-v4-flash:nitro",
-                    "summarization": "deepseek/deepseek-v4-flash:nitro",
-                    "classification": "deepseek/deepseek-v4-flash:nitro",
+                    "default": "deepseek/deepseek-v4-flash",
+                    "topic_simplification": "deepseek/deepseek-v4-flash",
+                    "keyword_generation": "deepseek/deepseek-v4-flash",
+                    "query_generation": "deepseek/deepseek-v4-flash",
+                    "validation": "deepseek/deepseek-v4-flash",
+                    "fact_check": "deepseek/deepseek-v4-flash",
+                    "summarization": "deepseek/deepseek-v4-flash",
+                    "classification": "deepseek/deepseek-v4-flash",
                 },
             },
             "standard": {
@@ -86,14 +86,14 @@ class ResearchDepthPolicy:
                 "default_budget": 0.50,
                 "max_workers": 8,
                 "model_map": {
-                    "default": "deepseek/deepseek-v4-flash:nitro",
-                    "topic_simplification": "deepseek/deepseek-v4-flash:nitro",
-                    "keyword_generation": "deepseek/deepseek-v4-flash:nitro",
-                    "query_generation": "deepseek/deepseek-v4-flash:nitro",
-                    "validation": "deepseek/deepseek-v4-flash:nitro",
-                    "fact_check": "deepseek/deepseek-v4-flash:nitro",
-                    "summarization": "deepseek/deepseek-v4-flash:nitro",
-                    "classification": "deepseek/deepseek-v4-flash:nitro",
+                    "default": "deepseek/deepseek-v4-flash",
+                    "topic_simplification": "deepseek/deepseek-v4-flash",
+                    "keyword_generation": "deepseek/deepseek-v4-flash",
+                    "query_generation": "deepseek/deepseek-v4-flash",
+                    "validation": "deepseek/deepseek-v4-flash",
+                    "fact_check": "deepseek/deepseek-v4-flash",
+                    "summarization": "deepseek/deepseek-v4-flash",
+                    "classification": "deepseek/deepseek-v4-flash",
                 },
             },
             "deep": {
@@ -104,14 +104,14 @@ class ResearchDepthPolicy:
                 "default_budget": 2.00,
                 "max_workers": 16,
                 "model_map": {
-                    "default": "deepseek/deepseek-v4-pro:nitro",
-                    "topic_simplification": "deepseek/deepseek-v4-pro:nitro",
-                    "keyword_generation": "deepseek/deepseek-v4-pro:nitro",
-                    "query_generation": "deepseek/deepseek-v4-pro:nitro",
-                    "validation": "moonshotai/kimi-k2.6:nitro",
-                    "fact_check": "moonshotai/kimi-k2.6:nitro",
-                    "summarization": "moonshotai/kimi-k2.6:nitro",
-                    "classification": "moonshotai/kimi-k2.6:nitro",
+                    "default": "deepseek/deepseek-v4-pro",
+                    "topic_simplification": "deepseek/deepseek-v4-pro",
+                    "keyword_generation": "deepseek/deepseek-v4-pro",
+                    "query_generation": "deepseek/deepseek-v4-pro",
+                    "validation": "moonshotai/kimi-k2.6",
+                    "fact_check": "moonshotai/kimi-k2.6",
+                    "summarization": "moonshotai/kimi-k2.6",
+                    "classification": "moonshotai/kimi-k2.6",
                 },
             },
         }

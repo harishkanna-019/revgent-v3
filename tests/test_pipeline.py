@@ -45,12 +45,18 @@ def reset_search_circuit():
 def _make_ctx(
     company: str = "meta.com", topics: list[str] | None = None, depth: str = "cheap"
 ) -> RunContext:
-    """Create a RunContext for testing."""
+    """Create a RunContext for testing.
+
+    `topics` defaults to ``["layoffs"]`` only when omitted (``None``).
+    An explicit empty list is honored so empty-topic tests work correctly.
+    """
+    if topics is None:
+        topics = ["layoffs"]
     policy = ResearchDepthPolicy.from_request(depth)
     return RunContext(
         policy=policy,
         company=company,
-        topics=topics or ["layoffs"],
+        topics=topics,
         date_min=0,
         date_max=90,
     )
@@ -415,13 +421,11 @@ class TestPipelineReal:
         deep = ResearchDepthPolicy.from_request("deep")
 
         # Cheap and standard use flash for validation
-        assert cheap.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
-        assert (
-            standard.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
-        )
+        assert cheap.model_for_task("validation") == "deepseek/deepseek-v4-flash"
+        assert standard.model_for_task("validation") == "deepseek/deepseek-v4-flash"
 
         # Deep uses kimi-k2.6 for validation
-        assert deep.model_for_task("validation") == "moonshotai/kimi-k2.6:nitro"
+        assert deep.model_for_task("validation") == "moonshotai/kimi-k2.6"
 
     async def test_multiple_topics(self):
         """Pipeline handles multiple topics sequentially."""
