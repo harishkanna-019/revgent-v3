@@ -1,0 +1,24 @@
+# Railway deployment config.
+# Reference: https://docs.railway.com/reference/config-as-code
+#
+# Builder uses our Dockerfile. Health check pings GET / which returns
+# {"status":"ok"} from api.py.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "uvicorn api:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Recommended environment variables (set in Railway dashboard):
+#   OPENROUTER_API_KEY   - required, your OpenRouter key
+#   SEARXNG_URL          - URL of your SearXNG instance (a sibling service)
+#   LLM_CONCURRENCY      - default 12; bump on larger plans
+#   SEARCH_CONCURRENCY   - default 8
+#   SCRAPE_CONCURRENCY   - default 4
+#   ABSOLUTE_MAX_COST    - default 5.0 USD per request

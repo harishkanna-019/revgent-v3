@@ -1,0 +1,41 @@
+# Files copied into the Docker build context but ignored.
+# Keeps the image small and reproducible.
+
+.git
+.github
+.gitignore
+.dockerignore
+.env
+.env.*
+!.env.example
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtualenvs
+.venv/
+venv/
+
+# Editor
+.idea/
+.vscode/
+.DS_Store
+
+# Local dev / autoresearch
+autoresearch.jsonl
+autoresearch.ideas.md
+scripts/
+tests/
+
+# Docs (already on disk via git, not needed in image)
+docs/
+*.md
+!README.md
