@@ -52,7 +52,9 @@ def parse_date(date_str: str) -> str:
     return "Unknown"
 
 
-def format_event(result: dict, summary: str | None = None, content_type: str = "analysis") -> dict:
+def format_event(
+    result: dict, summary: str | None = None, content_type: str = "analysis"
+) -> dict:
     """Format a search result into a standard event dict.
 
     Args:
@@ -73,6 +75,7 @@ def format_event(result: dict, summary: str | None = None, content_type: str = "
     if url:
         try:
             from urllib.parse import urlparse
+
             source_name = urlparse(url).netloc.replace("www.", "")
         except Exception:
             source_name = url
@@ -117,7 +120,9 @@ def extract_date_from_content(content: str) -> str:
 
     # Look for "Month DD, YYYY" or "DD Month YYYY"
     month_pattern = r"(?:January|February|March|April|May|June|July|August|September|October|November|December)"
-    match = re.search(rf"({month_pattern})\s+(\d{{1,2}}),?\s+(\d{{4}})", content, re.IGNORECASE)
+    match = re.search(
+        rf"({month_pattern})\s+(\d{{1,2}}),?\s+(\d{{4}})", content, re.IGNORECASE
+    )
     if match:
         try:
             dt = datetime.strptime(match.group(0).replace(",", ""), "%B %d %Y")

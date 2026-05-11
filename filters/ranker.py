@@ -5,22 +5,24 @@ from urllib.parse import urlparse
 
 # ── Credible domains bonus ──
 
-CREDIBLE_DOMAINS = frozenset({
-    "reuters.com",
-    "bloomberg.com",
-    "ft.com",
-    "wsj.com",
-    "nytimes.com",
-    "techcrunch.com",
-    "theguardian.com",
-    "bbc.com",
-    "bbc.co.uk",
-    "cnbc.com",
-    "forbes.com",
-    "businessinsider.com",
-    "apnews.com",
-    "washingtonpost.com",
-})
+CREDIBLE_DOMAINS = frozenset(
+    {
+        "reuters.com",
+        "bloomberg.com",
+        "ft.com",
+        "wsj.com",
+        "nytimes.com",
+        "techcrunch.com",
+        "theguardian.com",
+        "bbc.com",
+        "bbc.co.uk",
+        "cnbc.com",
+        "forbes.com",
+        "businessinsider.com",
+        "apnews.com",
+        "washingtonpost.com",
+    }
+)
 
 
 def _extract_domain(url: str) -> str:
@@ -84,6 +86,7 @@ def _score_keyword_matches(text: str, keywords: list[str]) -> tuple[int, int]:
 def _headline_has_numbers(headline: str) -> bool:
     """Check if headline contains numeric tokens."""
     import re
+
     if not headline:
         return False
     return bool(re.search(r"\d", headline))

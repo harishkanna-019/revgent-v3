@@ -17,10 +17,12 @@ class AsyncTTLCache:
 
     def __init__(self, ttl_seconds: float = 86400):
         """Args:
-            ttl_seconds: Time-to-live in seconds (default 24h)
+        ttl_seconds: Time-to-live in seconds (default 24h)
         """
         self._ttl = ttl_seconds
-        self._data: dict[str, tuple[Any, float]] = {}  # key -> (value, expiry_timestamp)
+        self._data: dict[
+            str, tuple[Any, float]
+        ] = {}  # key -> (value, expiry_timestamp)
         self._locks: dict[str, asyncio.Lock] = {}
         self._global_lock = asyncio.Lock()
 

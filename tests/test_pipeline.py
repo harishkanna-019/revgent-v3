@@ -4,15 +4,14 @@
 - Real API tests run full pipeline against OpenRouter + SearXNG.
 """
 
-import asyncio
 import os
 
 import pytest
 
-from core.context import RunContext, TopicState
+from core.context import RunContext
 from core.depth import ResearchDepthPolicy
 from core.pipeline import run
-from core.types import BudgetCheck, ItemResult, StageEnd, StageStart, ToolResult
+from core.types import BudgetCheck, ItemResult, StageEnd, StageStart
 
 pytestmark = pytest.mark.asyncio
 
@@ -29,10 +28,12 @@ skip_if_no_searxng = pytest.mark.skipif(
 
 # ── Fixtures ──
 
+
 @pytest.fixture(autouse=True)
 def reset_search_circuit():
     """Reset search circuit breaker between tests."""
     from providers import search
+
     search._consecutive_failures = 0
     search._circuit_open_until = 0.0
     yield
@@ -40,7 +41,10 @@ def reset_search_circuit():
 
 # ── Helpers ──
 
-def _make_ctx(company: str = "meta.com", topics: list[str] | None = None, depth: str = "cheap") -> RunContext:
+
+def _make_ctx(
+    company: str = "meta.com", topics: list[str] | None = None, depth: str = "cheap"
+) -> RunContext:
     """Create a RunContext for testing."""
     policy = ResearchDepthPolicy.from_request(depth)
     return RunContext(
@@ -55,6 +59,7 @@ def _make_ctx(company: str = "meta.com", topics: list[str] | None = None, depth:
 # ═══════════════════════════════════════════════
 # Pure tests (no infrastructure)
 # ═══════════════════════════════════════════════
+
 
 class TestPipelinePure:
     """Tests that verify pipeline wiring without real API calls."""
@@ -143,20 +148,35 @@ class TestPipelinePure:
         response = await run(ctx)
 
         assert set(response.keys()) >= {
-            "company", "events", "answers", "signals",
-            "usage", "topic_results", "cost", "budget",
+            "company",
+            "events",
+            "answers",
+            "signals",
+            "usage",
+            "topic_results",
+            "cost",
+            "budget",
         }
         assert set(response["usage"].keys()) >= {
-            "input_tokens", "output_tokens", "total_tokens",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
         }
         assert set(response["cost"].keys()) >= {
-            "total_cost", "budget", "budget_exhausted", "breakdown",
+            "total_cost",
+            "budget",
+            "budget_exhausted",
+            "breakdown",
         }
         assert set(response["budget"].keys()) >= {
-            "requested", "remaining", "exhausted",
+            "requested",
+            "remaining",
+            "exhausted",
         }
         assert set(response["topic_results"].keys()) >= {
-            "topic_found", "topic_count", "topic_name",
+            "topic_found",
+            "topic_count",
+            "topic_name",
         }
 
     @skip_if_no_key
@@ -195,6 +215,7 @@ class TestPipelinePure:
     async def test_cheap_mode_no_scraping(self):
         """Cheap mode does not call scrape provider."""
         import inspect
+
         source = inspect.getsource(run)
         # Scrape is called conditionally: `if ctx.policy.depth != "cheap"`
         assert 'ctx.policy.depth != "cheap"' in source
@@ -202,6 +223,7 @@ class TestPipelinePure:
     async def test_cheap_mode_no_llm_formatting(self):
         """Cheap mode bypasses LLM formatting."""
         import inspect
+
         source = inspect.getsource(run)
         # Format is called conditionally: `if ctx.policy.depth != "cheap"`
         assert 'ctx.policy.depth != "cheap"' in source
@@ -219,12 +241,14 @@ class TestPipelinePure:
     async def test_timeout_parameter_exists(self):
         """run() accepts timeout_seconds parameter."""
         import inspect
+
         sig = inspect.signature(run)
         assert "timeout_seconds" in sig.parameters
 
     async def test_standard_scrapes_limited(self):
         """Standard depth limits scraping to max_full_extraction_candidates."""
         import inspect
+
         source = inspect.getsource(run)
         # Should reference max_full_extraction_candidates to limit scraping
         assert "max_full_extraction_candidates" in source
@@ -233,6 +257,7 @@ class TestPipelinePure:
 # ═══════════════════════════════════════════════
 # Real API tests (end-to-end)
 # ═══════════════════════════════════════════════
+
 
 @skip_if_no_key
 @skip_if_no_searxng
@@ -335,7 +360,9 @@ class TestPipelineReal:
 
     async def test_standard_depth_uses_llm_topic(self):
         """Standard depth uses LLM for topic analysis (not regex)."""
-        ctx = _make_ctx(depth="standard", topics=["recent massive layoffs at meta platforms"])
+        ctx = _make_ctx(
+            depth="standard", topics=["recent massive layoffs at meta platforms"]
+        )
         await run(ctx)
 
         # Topic should be simplified by LLM to ≤3 words
@@ -373,7 +400,7 @@ class TestPipelineReal:
     async def test_deep_depth_more_candidates(self):
         """Deep depth processes more candidates than standard."""
         ctx = _make_ctx(depth="deep")
-        response = await run(ctx)
+        await run(ctx)
 
         # Deep has max_candidates_per_topic=20, standard=10
         # We can't guarantee search finds that many, but the policy is correct
@@ -389,7 +416,9 @@ class TestPipelineReal:
 
         # Cheap and standard use flash for validation
         assert cheap.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
-        assert standard.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
+        assert (
+            standard.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
+        )
 
         # Deep uses kimi-k2.6 for validation
         assert deep.model_for_task("validation") == "moonshotai/kimi-k2.6:nitro"

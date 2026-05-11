@@ -18,7 +18,6 @@ from filters.signals import (
     _infer_signal_type,
     classify_result,
 )
-from formatting import format_event
 from tools.format import _merge_usage, _parse_classification, format_one
 from tools.validate import _merge_usage as _val_merge_usage
 from tools.validate import _parse_fact_check, _parse_relevance, validate_one
@@ -32,6 +31,7 @@ skip_if_no_key = pytest.mark.skipif(
 
 
 # ── Helpers ──
+
 
 def _make_ctx(company: str = "meta.com", depth: str = "cheap") -> RunContext:
     policy = ResearchDepthPolicy.from_request(depth)
@@ -63,6 +63,7 @@ def _make_candidate(
 # ═══════════════════════════════════════════════
 # tools/validate.py — pure parsing
 # ═══════════════════════════════════════════════
+
 
 class TestParseRelevance:
     def test_yes(self):
@@ -122,6 +123,7 @@ class TestValidateMergeUsage:
 # ═══════════════════════════════════════════════
 # tools/validate.py — real API tests
 # ═══════════════════════════════════════════════
+
 
 @skip_if_no_key
 class TestValidateOneReal:
@@ -199,6 +201,7 @@ class TestValidateOneReal:
 # tools/format.py — pure parsing
 # ═══════════════════════════════════════════════
 
+
 class TestParseClassification:
     def test_novel_fact(self):
         assert _parse_classification("novel_fact") == "novel_fact"
@@ -232,12 +235,17 @@ class TestFormatMergeUsage:
         u1 = {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150}
         u2 = {"input_tokens": 200, "output_tokens": 100, "total_tokens": 300}
         merged = _merge_usage(u1, u2)
-        assert merged == {"input_tokens": 300, "output_tokens": 150, "total_tokens": 450}
+        assert merged == {
+            "input_tokens": 300,
+            "output_tokens": 150,
+            "total_tokens": 450,
+        }
 
 
 # ═══════════════════════════════════════════════
 # tools/format.py — real API tests
 # ═══════════════════════════════════════════════
+
 
 @skip_if_no_key
 class TestFormatOneReal:
@@ -253,7 +261,12 @@ class TestFormatOneReal:
         event = result.output
         assert event["headline"] == candidate["title"]
         assert event["source_url"] == candidate["url"]
-        assert event["content_type"] in {"novel_fact", "report", "analysis", "historical"}
+        assert event["content_type"] in {
+            "novel_fact",
+            "report",
+            "analysis",
+            "historical",
+        }
         assert event["date"] == "2026-01-16"
         assert result.usage["total_tokens"] > 0
         assert result.item_id == candidate["url"]
@@ -278,7 +291,12 @@ class TestFormatOneReal:
 
         # Should succeed with both summary and classification
         assert result.output["description"]
-        assert result.output["content_type"] in {"novel_fact", "report", "analysis", "historical"}
+        assert result.output["content_type"] in {
+            "novel_fact",
+            "report",
+            "analysis",
+            "historical",
+        }
         assert result.usage["total_tokens"] > 0
 
     async def test_cost_recorded_on_context(self):
@@ -308,10 +326,17 @@ class TestFormatOneReal:
 # filters/signals.py — pure logic
 # ═══════════════════════════════════════════════
 
+
 class TestInferSignalType:
     def test_market_speculation(self):
-        assert _infer_signal_type("This is speculation about the market") == "market_speculation"
-        assert _infer_signal_type("Rumored acquisition could happen") == "market_speculation"
+        assert (
+            _infer_signal_type("This is speculation about the market")
+            == "market_speculation"
+        )
+        assert (
+            _infer_signal_type("Rumored acquisition could happen")
+            == "market_speculation"
+        )
         assert _infer_signal_type("The company might expand") == "market_speculation"
 
     def test_unconfirmed(self):
@@ -323,7 +348,9 @@ class TestInferSignalType:
         assert _infer_signal_type("Preliminary findings show...") == "early_report"
 
     def test_analyst_commentary(self):
-        assert _infer_signal_type("Analyst commentary on earnings") == "analyst_commentary"
+        assert (
+            _infer_signal_type("Analyst commentary on earnings") == "analyst_commentary"
+        )
         assert _infer_signal_type("Expert opinion piece") == "analyst_commentary"
 
     def test_default(self):
@@ -409,7 +436,9 @@ class TestClassifyResult:
     def test_signal_infers_type(self):
         """Signal type is inferred from fact_check_raw text."""
         result = _make_candidate()
-        decision = classify_result(result, True, False, "Speculation about market", "layoffs")
+        decision = classify_result(
+            result, True, False, "Speculation about market", "layoffs"
+        )
         assert decision.signal["signal_type"] == "market_speculation"
 
     def test_event_has_correct_shape(self):
@@ -418,9 +447,15 @@ class TestClassifyResult:
         decision = classify_result(result, True, True, "HARD_FACT", "layoffs")
         event = decision.event
         assert set(event.keys()) >= {
-            "headline", "description", "topic", "date",
-            "source_name", "source_url", "content_type",
-            "headline_has_numbers", "cost_attribution",
+            "headline",
+            "description",
+            "topic",
+            "date",
+            "source_name",
+            "source_url",
+            "content_type",
+            "headline_has_numbers",
+            "cost_attribution",
         }
 
     def test_signal_has_correct_shape(self):
@@ -429,14 +464,22 @@ class TestClassifyResult:
         decision = classify_result(result, True, False, "OPINION", "layoffs")
         signal = decision.signal
         assert set(signal.keys()) >= {
-            "headline", "description", "topic", "date",
-            "source_name", "source_url", "signal_type",
-            "confidence", "why_not_event", "cost_attribution",
+            "headline",
+            "description",
+            "topic",
+            "date",
+            "source_name",
+            "source_url",
+            "signal_type",
+            "confidence",
+            "why_not_event",
+            "cost_attribution",
         }
 
     def test_lane_decision_frozen(self):
         """LaneDecision is immutable."""
         from dataclasses import FrozenInstanceError
+
         decision = LaneDecision(lane="discard")
         with pytest.raises(FrozenInstanceError):
             decision.lane = "event"

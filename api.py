@@ -9,10 +9,11 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, Field, field_validator
 
 from core.context import RunContext
@@ -34,8 +35,10 @@ _DEPTH_TIMEOUTS = {
 
 # ── Pydantic models (v2-identical) ──
 
+
 class ValidSource(BaseModel):
     """A source that supports a claim."""
+
     title: str = ""
     source_name: str = ""
     source_url: str = ""
@@ -45,6 +48,7 @@ class ValidSource(BaseModel):
 
 class Validity(BaseModel):
     """Validity assessment for a topic."""
+
     is_valid: bool = False
     statement: str = ""
     confidence: str = "low"
@@ -52,6 +56,7 @@ class Validity(BaseModel):
 
 class Confirmation(BaseModel):
     """Confirmation details for a topic."""
+
     is_confirmed: bool = False
     statement: str = ""
     source_name: str = ""
@@ -60,12 +65,14 @@ class Confirmation(BaseModel):
 
 class Timing(BaseModel):
     """Timing information for a topic."""
+
     happened_at: str = ""
     statement: str = ""
 
 
 class Answer(BaseModel):
     """Per-topic answer object."""
+
     topic: str = ""
     validity: Validity = Field(default_factory=Validity)
     confirmation: Confirmation = Field(default_factory=Confirmation)
@@ -76,6 +83,7 @@ class Answer(BaseModel):
 
 class Event(BaseModel):
     """A validated hard-fact event."""
+
     headline: str = ""
     description: str = ""
     topic: str = ""
@@ -89,6 +97,7 @@ class Event(BaseModel):
 
 class Signal(BaseModel):
     """A soft-intelligence signal."""
+
     headline: str = ""
     description: str = ""
     topic: str = ""
@@ -103,6 +112,7 @@ class Signal(BaseModel):
 
 class Usage(BaseModel):
     """Token usage statistics."""
+
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
@@ -110,6 +120,7 @@ class Usage(BaseModel):
 
 class TopicResults(BaseModel):
     """Topic-level results summary."""
+
     topic_found: bool = False
     topic_count: int = 0
     topic_name: str = ""
@@ -117,6 +128,7 @@ class TopicResults(BaseModel):
 
 class Cost(BaseModel):
     """Cost tracking and budget status."""
+
     total_cost: float = 0.0
     budget: float = 0.0
     budget_exhausted: bool = False
@@ -125,6 +137,7 @@ class Cost(BaseModel):
 
 class Budget(BaseModel):
     """Budget information."""
+
     requested: float = 0.0
     remaining: float = 0.0
     exhausted: bool = False
@@ -132,6 +145,7 @@ class Budget(BaseModel):
 
 class ResearchResponse(BaseModel):
     """Complete research response — identical to v2."""
+
     company: str = ""
     events: list[Event] = Field(default_factory=list)
     answers: list[Answer] = Field(default_factory=list)
@@ -144,10 +158,17 @@ class ResearchResponse(BaseModel):
 
 class ResearchRequest(BaseModel):
     """Synchronous research request."""
+
     company: str = Field(..., description="Company domain (e.g., meta.com)")
-    topics: list[str] = Field(default_factory=list, description="List of topics to research")
-    depth: str = Field(default="cheap", description="Research depth: cheap, standard, or deep")
-    max_cost: float | None = Field(default=None, description="Maximum budget in USD (capped at absolute max)")
+    topics: list[str] = Field(
+        default_factory=list, description="List of topics to research"
+    )
+    depth: str = Field(
+        default="cheap", description="Research depth: cheap, standard, or deep"
+    )
+    max_cost: float | None = Field(
+        default=None, description="Maximum budget in USD (capped at absolute max)"
+    )
     date_min: int = Field(default=0, description="Minimum days ago")
     date_max: int = Field(default=90, description="Maximum days ago")
 
@@ -179,10 +200,17 @@ class ResearchRequest(BaseModel):
 
 class AsyncResearchRequest(BaseModel):
     """Asynchronous research request with webhook callback."""
+
     company: str = Field(..., description="Company domain (e.g., meta.com)")
-    topics: list[str] = Field(default_factory=list, description="List of topics to research")
-    depth: str = Field(default="cheap", description="Research depth: cheap, standard, or deep")
-    max_cost: float | None = Field(default=None, description="Maximum budget in USD (capped at absolute max)")
+    topics: list[str] = Field(
+        default_factory=list, description="List of topics to research"
+    )
+    depth: str = Field(
+        default="cheap", description="Research depth: cheap, standard, or deep"
+    )
+    max_cost: float | None = Field(
+        default=None, description="Maximum budget in USD (capped at absolute max)"
+    )
     date_min: int = Field(default=0, description="Minimum days ago")
     date_max: int = Field(default=90, description="Maximum days ago")
     webhook_url: str = Field(..., description="URL to POST results to when complete")
@@ -223,6 +251,7 @@ class AsyncResearchRequest(BaseModel):
 
 class AsyncResearchResponse(BaseModel):
     """Immediate response for async research request."""
+
     status: str = "processing"
     request_id: str = ""
     message: str = ""
@@ -242,6 +271,7 @@ def _track_task(task: asyncio.Task) -> None:
 async def _post_webhook(url: str, payload: dict) -> None:
     """POST results to a webhook URL."""
     import httpx
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             await client.post(url, json=payload)
@@ -252,8 +282,9 @@ async def _post_webhook(url: str, payload: dict) -> None:
 
 # ── Lifespan ──
 
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize providers on startup, clean up on shutdown."""
     # Startup
     await llm.init()
@@ -289,6 +320,7 @@ app = FastAPI(
 
 
 # ── Endpoints ──
+
 
 @app.get("/")
 async def health_check() -> dict[str, str]:

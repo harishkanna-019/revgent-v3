@@ -9,7 +9,6 @@ import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
@@ -49,15 +48,18 @@ skip_if_no_searxng = pytest.mark.skipif(
 
 # ── Fixtures ──
 
+
 @pytest.fixture
 def client():
     """Synchronous TestClient for validation tests."""
-    with patch("api.llm.init", new_callable=AsyncMock), \
-         patch("api.search.init", new_callable=AsyncMock), \
-         patch("api.scrape.init", new_callable=AsyncMock), \
-         patch("api.llm.close", new_callable=AsyncMock), \
-         patch("api.search.close", new_callable=AsyncMock), \
-         patch("api.scrape.close", new_callable=AsyncMock):
+    with (
+        patch("api.llm.init", new_callable=AsyncMock),
+        patch("api.search.init", new_callable=AsyncMock),
+        patch("api.scrape.init", new_callable=AsyncMock),
+        patch("api.llm.close", new_callable=AsyncMock),
+        patch("api.search.close", new_callable=AsyncMock),
+        patch("api.scrape.close", new_callable=AsyncMock),
+    ):
         with TestClient(app) as c:
             yield c
 
@@ -73,6 +75,7 @@ def reset_background_tasks():
 # ═══════════════════════════════════════════════
 # Pure tests — no infrastructure needed
 # ═══════════════════════════════════════════════
+
 
 class TestHealthCheck:
     """Health check endpoint tests."""
@@ -105,33 +108,42 @@ class TestRequestValidation:
 
     def test_invalid_depth_rejected(self, client):
         """Bad depth value returns 422."""
-        response = client.post("/research", json={
-            "company": "meta.com",
-            "topics": ["layoffs"],
-            "depth": "ultra",
-        })
+        response = client.post(
+            "/research",
+            json={
+                "company": "meta.com",
+                "topics": ["layoffs"],
+                "depth": "ultra",
+            },
+        )
         assert response.status_code == 422
         detail = response.json()["detail"]
         assert any("depth" in str(e).lower() for e in detail)
 
     def test_budget_exceeds_absolute_max_rejected(self, client):
         """Budget above absolute max returns 422."""
-        response = client.post("/research", json={
-            "company": "meta.com",
-            "topics": ["layoffs"],
-            "max_cost": ABSOLUTE_MAX_COST + 1.0,
-        })
+        response = client.post(
+            "/research",
+            json={
+                "company": "meta.com",
+                "topics": ["layoffs"],
+                "max_cost": ABSOLUTE_MAX_COST + 1.0,
+            },
+        )
         assert response.status_code == 422
         detail = response.json()["detail"]
         assert any("max_cost" in str(e).lower() for e in detail)
 
     def test_valid_request_accepted(self, client):
         """Valid request passes validation (may fail at pipeline)."""
-        response = client.post("/research", json={
-            "company": "meta.com",
-            "topics": ["layoffs"],
-            "depth": "cheap",
-        })
+        response = client.post(
+            "/research",
+            json={
+                "company": "meta.com",
+                "topics": ["layoffs"],
+                "depth": "cheap",
+            },
+        )
         # Should not be a validation error
         assert response.status_code != 422
 
@@ -141,21 +153,27 @@ class TestAsyncRequestValidation:
 
     def test_missing_webhook_rejected(self, client):
         """Missing webhook_url returns 422."""
-        response = client.post("/research/async", json={
-            "company": "meta.com",
-            "topics": ["layoffs"],
-        })
+        response = client.post(
+            "/research/async",
+            json={
+                "company": "meta.com",
+                "topics": ["layoffs"],
+            },
+        )
         assert response.status_code == 422
         detail = response.json()["detail"]
         assert any("webhook_url" in str(e).lower() for e in detail)
 
     def test_invalid_webhook_rejected(self, client):
         """Non-HTTP webhook_url returns 422."""
-        response = client.post("/research/async", json={
-            "company": "meta.com",
-            "topics": ["layoffs"],
-            "webhook_url": "ftp://example.com/callback",
-        })
+        response = client.post(
+            "/research/async",
+            json={
+                "company": "meta.com",
+                "topics": ["layoffs"],
+                "webhook_url": "ftp://example.com/callback",
+            },
+        )
         assert response.status_code == 422
         detail = response.json()["detail"]
         assert any("webhook_url" in str(e).lower() for e in detail)
@@ -164,11 +182,14 @@ class TestAsyncRequestValidation:
         """Async endpoint returns processing status immediately."""
         with patch("api.run") as mock_run:
             mock_run.return_value = {"company": "meta.com", "events": []}
-            response = client.post("/research/async", json={
-                "company": "meta.com",
-                "topics": ["layoffs"],
-                "webhook_url": "https://example.com/webhook",
-            })
+            response = client.post(
+                "/research/async",
+                json={
+                    "company": "meta.com",
+                    "topics": ["layoffs"],
+                    "webhook_url": "https://example.com/webhook",
+                },
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "processing"
@@ -183,8 +204,14 @@ class TestResponseShape:
         """ResearchResponse has all required v2 fields."""
         fields = set(ResearchResponse.model_fields.keys())
         expected = {
-            "company", "events", "answers", "signals",
-            "usage", "topic_results", "cost", "budget",
+            "company",
+            "events",
+            "answers",
+            "signals",
+            "usage",
+            "topic_results",
+            "cost",
+            "budget",
         }
         assert expected <= fields
 
@@ -192,9 +219,15 @@ class TestResponseShape:
         """Event model has all required v2 fields."""
         fields = set(Event.model_fields.keys())
         expected = {
-            "headline", "description", "topic", "date",
-            "source_name", "source_url", "content_type",
-            "headline_has_numbers", "cost_attribution",
+            "headline",
+            "description",
+            "topic",
+            "date",
+            "source_name",
+            "source_url",
+            "content_type",
+            "headline_has_numbers",
+            "cost_attribution",
         }
         assert expected <= fields
 
@@ -202,9 +235,16 @@ class TestResponseShape:
         """Signal model has all required v2 fields."""
         fields = set(Signal.model_fields.keys())
         expected = {
-            "headline", "description", "topic", "date",
-            "source_name", "source_url", "signal_type",
-            "confidence", "why_not_event", "cost_attribution",
+            "headline",
+            "description",
+            "topic",
+            "date",
+            "source_name",
+            "source_url",
+            "signal_type",
+            "confidence",
+            "why_not_event",
+            "cost_attribution",
         }
         assert expected <= fields
 
@@ -212,8 +252,12 @@ class TestResponseShape:
         """Answer model has all required v2 fields."""
         fields = set(Answer.model_fields.keys())
         expected = {
-            "topic", "validity", "confirmation", "timing",
-            "summary", "valid_sources",
+            "topic",
+            "validity",
+            "confirmation",
+            "timing",
+            "summary",
+            "valid_sources",
         }
         assert expected <= fields
 
@@ -221,8 +265,11 @@ class TestResponseShape:
         """ValidSource model has all required v2 fields."""
         fields = set(ValidSource.model_fields.keys())
         expected = {
-            "title", "source_name", "source_url",
-            "published_date", "supports_claim",
+            "title",
+            "source_name",
+            "source_url",
+            "published_date",
+            "supports_claim",
         }
         assert expected <= fields
 
@@ -259,7 +306,15 @@ class TestResponseShape:
     def test_async_request_fields(self):
         """AsyncResearchRequest has expected fields."""
         fields = set(AsyncResearchRequest.model_fields.keys())
-        expected = {"company", "topics", "depth", "max_cost", "date_min", "date_max", "webhook_url"}
+        expected = {
+            "company",
+            "topics",
+            "depth",
+            "max_cost",
+            "date_min",
+            "date_max",
+            "webhook_url",
+        }
         assert expected <= fields
 
     def test_async_response_fields(self):
@@ -274,6 +329,7 @@ class TestBackgroundTasks:
 
     async def test_track_task_adds_to_set(self):
         """_track_task adds task to tracked set."""
+
         async def dummy():
             pass
 
@@ -284,6 +340,7 @@ class TestBackgroundTasks:
 
     async def test_task_removed_on_completion(self):
         """Completed tasks are removed from tracked set."""
+
         async def dummy():
             pass
 
@@ -304,13 +361,14 @@ class TestLifespan:
 
     async def test_lifespan_calls_init_and_close(self):
         """Lifespan calls provider init() on enter and close() on exit."""
-        with patch("api.llm.init", new_callable=AsyncMock) as mock_llm_init, \
-             patch("api.search.init", new_callable=AsyncMock) as mock_search_init, \
-             patch("api.scrape.init", new_callable=AsyncMock) as mock_scrape_init, \
-             patch("api.llm.close", new_callable=AsyncMock) as mock_llm_close, \
-             patch("api.search.close", new_callable=AsyncMock) as mock_search_close, \
-             patch("api.scrape.close", new_callable=AsyncMock) as mock_scrape_close:
-
+        with (
+            patch("api.llm.init", new_callable=AsyncMock) as mock_llm_init,
+            patch("api.search.init", new_callable=AsyncMock) as mock_search_init,
+            patch("api.scrape.init", new_callable=AsyncMock) as mock_scrape_init,
+            patch("api.llm.close", new_callable=AsyncMock) as mock_llm_close,
+            patch("api.search.close", new_callable=AsyncMock) as mock_search_close,
+            patch("api.scrape.close", new_callable=AsyncMock) as mock_scrape_close,
+        ):
             async with lifespan(app):
                 mock_llm_init.assert_called_once()
                 mock_search_init.assert_called_once()
@@ -322,19 +380,21 @@ class TestLifespan:
 
     async def test_lifespan_awaits_background_tasks(self):
         """Lifespan exit cancels and awaits background tasks."""
+
         async def slow_task():
             await asyncio.sleep(100)
 
         task = asyncio.create_task(slow_task())
         _track_task(task)
 
-        with patch("api.llm.init", new_callable=AsyncMock), \
-             patch("api.search.init", new_callable=AsyncMock), \
-             patch("api.scrape.init", new_callable=AsyncMock), \
-             patch("api.llm.close", new_callable=AsyncMock), \
-             patch("api.search.close", new_callable=AsyncMock), \
-             patch("api.scrape.close", new_callable=AsyncMock):
-
+        with (
+            patch("api.llm.init", new_callable=AsyncMock),
+            patch("api.search.init", new_callable=AsyncMock),
+            patch("api.scrape.init", new_callable=AsyncMock),
+            patch("api.llm.close", new_callable=AsyncMock),
+            patch("api.search.close", new_callable=AsyncMock),
+            patch("api.scrape.close", new_callable=AsyncMock),
+        ):
             async with lifespan(app):
                 pass
 
@@ -348,16 +408,19 @@ class TestDepthTimeouts:
     def test_cheap_timeout(self):
         """Cheap depth has 30s timeout."""
         from api import _DEPTH_TIMEOUTS
+
         assert _DEPTH_TIMEOUTS["cheap"] == 30.0
 
     def test_standard_timeout(self):
         """Standard depth has 60s timeout."""
         from api import _DEPTH_TIMEOUTS
+
         assert _DEPTH_TIMEOUTS["standard"] == 60.0
 
     def test_deep_timeout(self):
         """Deep depth has 120s timeout."""
         from api import _DEPTH_TIMEOUTS
+
         assert _DEPTH_TIMEOUTS["deep"] == 120.0
 
 
@@ -366,10 +429,13 @@ class TestErrorResponses:
 
     def test_validation_error_includes_field(self, client):
         """422 responses include the field that failed validation."""
-        response = client.post("/research", json={
-            "company": "meta.com",
-            "depth": "invalid",
-        })
+        response = client.post(
+            "/research",
+            json={
+                "company": "meta.com",
+                "depth": "invalid",
+            },
+        )
         assert response.status_code == 422
         detail = response.json()["detail"]
         # FastAPI/Pydantic v2 detail is a list of error objects
@@ -382,6 +448,7 @@ class TestErrorResponses:
 # Real API tests — need running server or ASGI
 # ═══════════════════════════════════════════════
 
+
 @skip_if_no_key
 @skip_if_no_searxng
 class TestApiReal:
@@ -391,11 +458,14 @@ class TestApiReal:
         """POST /research with cheap depth returns valid response."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post("/research", json={
-                "company": "meta.com",
-                "topics": ["layoffs"],
-                "depth": "cheap",
-            })
+            response = await client.post(
+                "/research",
+                json={
+                    "company": "meta.com",
+                    "topics": ["layoffs"],
+                    "depth": "cheap",
+                },
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["company"] == "meta.com"
@@ -410,11 +480,14 @@ class TestApiReal:
         """Response validates against ResearchResponse model."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post("/research", json={
-                "company": "meta.com",
-                "topics": ["layoffs"],
-                "depth": "cheap",
-            })
+            response = await client.post(
+                "/research",
+                json={
+                    "company": "meta.com",
+                    "topics": ["layoffs"],
+                    "depth": "cheap",
+                },
+            )
             assert response.status_code == 200
             data = response.json()
             # Should not raise validation error
@@ -424,11 +497,14 @@ class TestApiReal:
         """Cheap research stays within budget."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post("/research", json={
-                "company": "meta.com",
-                "topics": ["layoffs"],
-                "depth": "cheap",
-            })
+            response = await client.post(
+                "/research",
+                json={
+                    "company": "meta.com",
+                    "topics": ["layoffs"],
+                    "depth": "cheap",
+                },
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["cost"]["total_cost"] <= 0.015

@@ -4,7 +4,6 @@ import asyncio
 import os
 import time
 
-import httpx
 import pytest
 import pytest_asyncio
 
@@ -14,12 +13,11 @@ pytestmark = pytest.mark.asyncio
 
 # Skip real-API tests when no SearXNG URL is configured
 _HAS_SEARXNG = bool(os.environ.get("SEARXNG_URL"))
-skip_if_no_searxng = pytest.mark.skipif(
-    not _HAS_SEARXNG, reason="SEARXNG_URL not set"
-)
+skip_if_no_searxng = pytest.mark.skipif(not _HAS_SEARXNG, reason="SEARXNG_URL not set")
 
 
 # ── Helpers ──
+
 
 @pytest_asyncio.fixture(autouse=True)
 async def _init_search():
@@ -36,6 +34,7 @@ async def _init_search():
 
 
 # ── Real API Tests ──
+
 
 @skip_if_no_searxng
 class TestSearchReal:
@@ -95,6 +94,7 @@ class TestSearchReal:
 
 
 # ── Circuit Breaker Tests ──
+
 
 class TestCircuitBreaker:
     """Tests for circuit breaker logic."""
@@ -170,6 +170,7 @@ class TestCircuitBreaker:
 
 # ── Cache Tests ──
 
+
 class TestSearchCache:
     """Tests for search cache logic."""
 
@@ -200,6 +201,7 @@ class TestSearchCache:
 
 # ── Time Range Mapping Tests ──
 
+
 class TestTimeRangeMapping:
     """Tests for max_days → time_range mapping."""
 
@@ -229,6 +231,7 @@ class TestTimeRangeMapping:
 
 
 # ── Result Parsing Tests ──
+
 
 class TestParseSearxngResult:
     """Tests for _parse_searxng_result."""
@@ -283,6 +286,7 @@ class TestParseSearxngResult:
 
 
 # ── Lifecycle Tests ──
+
 
 class TestSearchLifecycle:
     """Tests for init() / close() lifecycle."""

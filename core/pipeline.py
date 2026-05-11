@@ -11,15 +11,15 @@ from core.context import RunContext, TopicState
 from core.runner import parallel
 from core.types import BudgetCheck, Emit, ItemResult, StageEnd, StageStart, ToolResult
 from filters.dedup import dedup_urls
-from filters.signals import LaneDecision
 from filters.ranker import rank
-from filters.signals import classify_result
+from filters.signals import LaneDecision, classify_result
 from filters.stop_protocol import apply_stop_protocol
-from formatting import format_event
 from tools import company, queries, topic, validate
 
 
-async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None = None) -> dict:
+async def run(
+    ctx: RunContext, emit: Emit = None, timeout_seconds: float | None = None
+) -> dict:
     """Run the full research pipeline.
 
     Flow per topic:
@@ -50,15 +50,17 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
     """
 
     async def _pipeline() -> dict:
-        def _emit(event) -> None:
+        def _emit(event: BudgetCheck | StageStart | StageEnd | ItemResult) -> None:
             if emit is not None:
                 emit(event)
 
         def _emit_budget() -> None:
-            _emit(BudgetCheck(
-                spent=round(ctx.cost.total_cost, 8),
-                remaining=round(max(0.0, ctx.cost.budget - ctx.cost.total_cost), 8),
-            ))
+            _emit(
+                BudgetCheck(
+                    spent=round(ctx.cost.total_cost, 8),
+                    remaining=round(max(0.0, ctx.cost.budget - ctx.cost.total_cost), 8),
+                )
+            )
 
         # ── Resolve company names once (used by stop protocol) ──
         company_names, _ = await company.get_names(ctx.company)
@@ -83,7 +85,9 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
             else:
                 # Standard/Deep: LLM-based topic analysis
                 topic_result = await topic.analyze(ctx)
-                ctx.topic.simplified = topic_result.output.get("simplified", topic_name.strip().lower())
+                ctx.topic.simplified = topic_result.output.get(
+                    "simplified", topic_name.strip().lower()
+                )
                 ctx.topic.keywords = topic_result.output.get("keywords", [])
                 # Cost already recorded by topic.analyze()
 
@@ -100,7 +104,13 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
 
             if ctx.policy.depth == "cheap":
                 # Cheap: 2 hardcoded queries
-                company_stem = ctx.company.strip().lower().replace("www.", "").split("://")[-1].split("/")[0]
+                company_stem = (
+                    ctx.company.strip()
+                    .lower()
+                    .replace("www.", "")
+                    .split("://")[-1]
+                    .split("/")[0]
+                )
                 simplified = ctx.topic.simplified
                 ctx.topic.queries = [
                     f"{company_stem} {simplified}",
@@ -179,19 +189,30 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
             # Stage 7: Scrape (standard/deep only, top N)
             # ═══════════════════════════════════════════════
             if ctx.policy.depth != "cheap" and ctx.policy.max_extraction_chars > 0:
-                _emit(StageStart(stage="scrape", count=min(len(candidates), ctx.policy.max_full_extraction_candidates)))
+                _emit(
+                    StageStart(
+                        stage="scrape",
+                        count=min(
+                            len(candidates), ctx.policy.max_full_extraction_candidates
+                        ),
+                    )
+                )
 
                 from providers import scrape
 
                 # Only scrape top max_full_extraction_candidates
-                scrape_candidates = candidates[:ctx.policy.max_full_extraction_candidates]
+                scrape_candidates = candidates[
+                    : ctx.policy.max_full_extraction_candidates
+                ]
                 urls = [c.get("url", "") for c in scrape_candidates if c.get("url")]
                 if urls:
                     scraped = await scrape.scrape_many(urls)
                     for c in scrape_candidates:
                         url = c.get("url", "")
                         if url in scraped and scraped[url]:
-                            c["content"] = scraped[url][:ctx.policy.max_extraction_chars]
+                            c["content"] = scraped[url][
+                                : ctx.policy.max_extraction_chars
+                            ]
 
                 _emit(StageEnd(stage="scrape", out=len(urls)))
                 _emit_budget()
@@ -204,22 +225,26 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
             # ═══════════════════════════════════════════════
             _emit(StageStart(stage="validate", count=len(candidates)))
 
-            async def _validate_one(candidate: dict):
+            async def _validate_one(candidate: dict) -> ToolResult | BaseException:
                 try:
                     result = await validate.validate_one(ctx, candidate)
                     status = result.output["status"]
-                    _emit(ItemResult(
-                        stage="validate",
-                        item_id=result.item_id or candidate.get("url", ""),
-                        status=status,
-                    ))
+                    _emit(
+                        ItemResult(
+                            stage="validate",
+                            item_id=result.item_id or candidate.get("url", ""),
+                            status=status,
+                        )
+                    )
                     return result
                 except Exception as exc:
-                    _emit(ItemResult(
-                        stage="validate",
-                        item_id=candidate.get("url", ""),
-                        status=f"error: {type(exc).__name__}",
-                    ))
+                    _emit(
+                        ItemResult(
+                            stage="validate",
+                            item_id=candidate.get("url", ""),
+                            status=f"error: {type(exc).__name__}",
+                        )
+                    )
                     return exc
 
             validation_results = await parallel(
@@ -229,7 +254,8 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
             )
 
             valid_count = sum(
-                1 for r in validation_results
+                1
+                for r in validation_results
                 if isinstance(r, ToolResult)
                 and r.output["status"] in ("valid", "opinion")
             )
@@ -271,6 +297,7 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
                 # For standard/deep, replace with LLM-formatted event
                 if ctx.policy.depth != "cheap" and decision.lane == "event":
                     from tools import format as fmt
+
                     fmt_result = await fmt.format_one(ctx, candidate)
                     decision = LaneDecision(
                         lane="event",
@@ -278,9 +305,9 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
                         signal=None,
                     )
 
-                if decision.lane == "event":
+                if decision.lane == "event" and decision.event is not None:
                     ctx.events.append(decision.event)
-                elif decision.lane == "signal":
+                elif decision.lane == "signal" and decision.signal is not None:
                     ctx.signals.append(decision.signal)
                 # discard: do nothing
 
@@ -303,10 +330,14 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
             amortized = ctx.cost.amortize_shared(all_item_ids)
             for i, e in enumerate(ctx.events):
                 item_id = e.get("source_url", f"event-{i}")
-                e["cost_attribution"] = round(ctx.cost.cost_for_item(item_id, amortized), 8)
+                e["cost_attribution"] = round(
+                    ctx.cost.cost_for_item(item_id, amortized), 8
+                )
             for i, s in enumerate(ctx.signals):
                 item_id = s.get("source_url", f"signal-{i}")
-                s["cost_attribution"] = round(ctx.cost.cost_for_item(item_id, amortized), 8)
+                s["cost_attribution"] = round(
+                    ctx.cost.cost_for_item(item_id, amortized), 8
+                )
 
         _emit(StageEnd(stage="cost_attribution", out=1))
 
@@ -314,9 +345,7 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
         # Final: Build response
         # ═══════════════════════════════════════════════
         _emit(StageStart(stage="build_response", count=1))
-        response = ctx.build_response(
-            topic_name=ctx.topics[-1] if ctx.topics else ""
-        )
+        response = ctx.build_response(topic_name=ctx.topics[-1] if ctx.topics else "")
         _emit(StageEnd(stage="build_response", out=1))
 
         return response
@@ -327,8 +356,6 @@ async def run(ctx: RunContext, emit: Emit = None, timeout_seconds: float | None 
             return await asyncio.wait_for(_pipeline(), timeout=timeout_seconds)
         except asyncio.TimeoutError:
             # Return partial response with whatever was accumulated
-            return ctx.build_response(
-                topic_name=ctx.topics[-1] if ctx.topics else ""
-            )
+            return ctx.build_response(topic_name=ctx.topics[-1] if ctx.topics else "")
     else:
         return await _pipeline()

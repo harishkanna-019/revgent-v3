@@ -22,10 +22,46 @@ class LaneDecision:
 
 # Signal type inference keywords (order matters — first match wins)
 _SIGNAL_KEYWORDS = [
-    ("market_speculation", ["speculation", "speculative", "rumor", "rumored", "might ", "could ", "may ", "potential ", "possibly", "speculated"]),
-    ("unconfirmed", ["unconfirmed", "reportedly", "allegedly", "claimed", "sources say", "according to sources", "unverified"]),
+    (
+        "market_speculation",
+        [
+            "speculation",
+            "speculative",
+            "rumor",
+            "rumored",
+            "might ",
+            "could ",
+            "may ",
+            "potential ",
+            "possibly",
+            "speculated",
+        ],
+    ),
+    (
+        "unconfirmed",
+        [
+            "unconfirmed",
+            "reportedly",
+            "allegedly",
+            "claimed",
+            "sources say",
+            "according to sources",
+            "unverified",
+        ],
+    ),
     ("early_report", ["early", "preliminary", "initial", "breaking", "developing"]),
-    ("analyst_commentary", ["analyst", "expert", "commentary", "opinion", "editorial", "viewpoint", "perspective"]),
+    (
+        "analyst_commentary",
+        [
+            "analyst",
+            "expert",
+            "commentary",
+            "opinion",
+            "editorial",
+            "viewpoint",
+            "perspective",
+        ],
+    ),
 ]
 
 
@@ -118,6 +154,7 @@ def _extract_source_name(url: str) -> str:
         return ""
     try:
         from urllib.parse import urlparse
+
         return urlparse(url).netloc.replace("www.", "")
     except Exception:
         return url

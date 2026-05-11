@@ -17,14 +17,25 @@ def build_answers(events: list[dict], topics: list[str]) -> list[dict]:
         topic_events = [e for e in events if e.get("topic") == topic]
 
         if not topic_events:
-            answers.append({
-                "topic": topic,
-                "validity": {"is_valid": False, "statement": "No events found for this topic.", "confidence": "low"},
-                "confirmation": {"is_confirmed": False, "statement": "", "source_name": "", "source_url": ""},
-                "timing": {"happened_at": "", "statement": ""},
-                "summary": "",
-                "valid_sources": [],
-            })
+            answers.append(
+                {
+                    "topic": topic,
+                    "validity": {
+                        "is_valid": False,
+                        "statement": "No events found for this topic.",
+                        "confidence": "low",
+                    },
+                    "confirmation": {
+                        "is_confirmed": False,
+                        "statement": "",
+                        "source_name": "",
+                        "source_url": "",
+                    },
+                    "timing": {"happened_at": "", "statement": ""},
+                    "summary": "",
+                    "valid_sources": [],
+                }
+            )
             continue
 
         # Use the highest-ranked event as the primary source
@@ -40,25 +51,27 @@ def build_answers(events: list[dict], topics: list[str]) -> list[dict]:
             for e in topic_events
         ]
 
-        answers.append({
-            "topic": topic,
-            "validity": {
-                "is_valid": True,
-                "statement": f"Events found for {topic}",
-                "confidence": "high",
-            },
-            "confirmation": {
-                "is_confirmed": True,
-                "statement": primary.get("description", ""),
-                "source_name": primary.get("source_name", ""),
-                "source_url": primary.get("source_url", ""),
-            },
-            "timing": {
-                "happened_at": primary.get("date", ""),
-                "statement": f"Occurred on {primary.get('date', '')}",
-            },
-            "summary": primary.get("description", ""),
-            "valid_sources": sources,
-        })
+        answers.append(
+            {
+                "topic": topic,
+                "validity": {
+                    "is_valid": True,
+                    "statement": f"Events found for {topic}",
+                    "confidence": "high",
+                },
+                "confirmation": {
+                    "is_confirmed": True,
+                    "statement": primary.get("description", ""),
+                    "source_name": primary.get("source_name", ""),
+                    "source_url": primary.get("source_url", ""),
+                },
+                "timing": {
+                    "happened_at": primary.get("date", ""),
+                    "statement": f"Occurred on {primary.get('date', '')}",
+                },
+                "summary": primary.get("description", ""),
+                "valid_sources": sources,
+            }
+        )
 
     return answers

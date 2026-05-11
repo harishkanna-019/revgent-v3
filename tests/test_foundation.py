@@ -1,7 +1,7 @@
 """Foundation layer tests — pure logic, no infrastructure, no mocks."""
 
 import asyncio
-import time
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -24,6 +24,7 @@ from models import CostTracker, UsageStats
 # core/types.py
 # ───────────────────────────────
 
+
 class TestToolResult:
     def test_frozen(self):
         tr = ToolResult(output="hello", usage={"input_tokens": 10})
@@ -35,7 +36,11 @@ class TestToolResult:
         assert tr.usage == {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
     def test_fields(self):
-        tr = ToolResult(output={"simplified": "layoffs", "keywords": ["jobs"]}, usage={"input_tokens": 5}, item_id="item-1")
+        tr = ToolResult(
+            output={"simplified": "layoffs", "keywords": ["jobs"]},
+            usage={"input_tokens": 5},
+            item_id="item-1",
+        )
         assert tr.output["simplified"] == "layoffs"
         assert tr.item_id == "item-1"
 
@@ -72,6 +77,7 @@ class TestEventTypes:
 # ───────────────────────────────
 # core/depth.py
 # ───────────────────────────────
+
 
 class TestResearchDepthPolicy:
     def test_cheap_profile(self):
@@ -112,36 +118,48 @@ class TestResearchDepthPolicy:
     def test_model_for_task_cheap(self):
         policy = ResearchDepthPolicy.from_request("cheap")
         assert policy.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
-        assert policy.model_for_task("summarization") == "deepseek/deepseek-v4-flash:nitro"
+        assert (
+            policy.model_for_task("summarization") == "deepseek/deepseek-v4-flash:nitro"
+        )
 
     def test_model_for_task_standard(self):
         policy = ResearchDepthPolicy.from_request("standard")
         assert policy.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
-        assert policy.model_for_task("classification") == "deepseek/deepseek-v4-flash:nitro"
+        assert (
+            policy.model_for_task("classification")
+            == "deepseek/deepseek-v4-flash:nitro"
+        )
 
     def test_model_for_task_deep(self):
         policy = ResearchDepthPolicy.from_request("deep")
         assert policy.model_for_task("validation") == "moonshotai/kimi-k2.6:nitro"
         assert policy.model_for_task("summarization") == "moonshotai/kimi-k2.6:nitro"
-        assert policy.model_for_task("query_generation") == "deepseek/deepseek-v4-pro:nitro"
+        assert (
+            policy.model_for_task("query_generation")
+            == "deepseek/deepseek-v4-pro:nitro"
+        )
 
     def test_model_for_task_default_fallback(self):
         policy = ResearchDepthPolicy.from_request("cheap")
-        assert policy.model_for_task("unknown_task") == "deepseek/deepseek-v4-flash:nitro"
+        assert (
+            policy.model_for_task("unknown_task") == "deepseek/deepseek-v4-flash:nitro"
+        )
 
     def test_budget_cap(self):
         policy = ResearchDepthPolicy.from_request("cheap", max_cost=10.0)
-        assert policy.default_budget == 5.0  # user max_cost capped at absolute max of 5.0
+        assert (
+            policy.default_budget == 5.0
+        )  # user max_cost capped at absolute max of 5.0
 
-    def test_unknown_depth_defaults_to_standard(self):
-        policy = ResearchDepthPolicy.from_request("garbage")
-        assert policy.depth == "garbage"  # passes through, but uses standard profile
-        assert policy.max_candidates_per_topic == 10
+    def test_unknown_depth_raises(self):
+        with pytest.raises(ValueError, match="Unknown depth"):
+            ResearchDepthPolicy.from_request("garbage")
 
 
 # ───────────────────────────────
 # models.py
 # ───────────────────────────────
+
 
 class TestUsageStats:
     def test_add(self):
@@ -160,7 +178,11 @@ class TestUsageStats:
 
     def test_to_dict(self):
         u = UsageStats(input_tokens=100, output_tokens=50, total_tokens=150)
-        assert u.to_dict() == {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150}
+        assert u.to_dict() == {
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "total_tokens": 150,
+        }
 
 
 class TestCostTracker:
@@ -189,7 +211,7 @@ class TestCostTracker:
     def test_cost_for_item(self):
         ct = CostTracker(budget=1.0)
         ct.record(0.20, item_id="item-1")
-        amortized = ct.amortize_shared(["item-1", "item-2"])
+        ct.amortize_shared(["item-1", "item-2"])
         # item-1: 0.20 direct + 0.0 shared (no shared pending)
         assert ct.cost_for_item("item-1") == 0.20
 
@@ -213,6 +235,7 @@ class TestCostTracker:
 # ───────────────────────────────
 # cache.py
 # ───────────────────────────────
+
 
 class TestAsyncTTLCache:
     @pytest.mark.asyncio
@@ -297,6 +320,7 @@ class TestAsyncTTLCache:
 # core/runner.py
 # ───────────────────────────────
 
+
 class TestParallel:
     @pytest.mark.asyncio
     async def test_basic(self):
@@ -358,6 +382,7 @@ class TestParallel:
 # core/context.py
 # ───────────────────────────────
 
+
 class TestRunContext:
     def test_slots(self):
         ctx = RunContext(
@@ -393,7 +418,10 @@ class TestRunContext:
             date_min=0,
             date_max=90,
         )
-        ctx.record({"input_tokens": 1000, "output_tokens": 500, "total_tokens": 1500}, item_id="url-1")
+        ctx.record(
+            {"input_tokens": 1000, "output_tokens": 500, "total_tokens": 1500},
+            item_id="url-1",
+        )
         assert ctx.usage.total_tokens == 1500
         assert "url-1" in ctx.cost.per_item
         assert ctx.cost.total_cost > 0
@@ -407,17 +435,19 @@ class TestRunContext:
             date_min=0,
             date_max=90,
         )
-        ctx.events.append({
-            "headline": "Meta lays off 1000",
-            "description": "...",
-            "topic": "layoffs",
-            "date": "2026-01-16",
-            "source_name": "reuters.com",
-            "source_url": "https://reuters.com/...",
-            "content_type": "novel_fact",
-            "headline_has_numbers": True,
-            "cost_attribution": 0.001,
-        })
+        ctx.events.append(
+            {
+                "headline": "Meta lays off 1000",
+                "description": "...",
+                "topic": "layoffs",
+                "date": "2026-01-16",
+                "source_name": "reuters.com",
+                "source_url": "https://reuters.com/...",
+                "content_type": "novel_fact",
+                "headline_has_numbers": True,
+                "cost_attribution": 0.001,
+            }
+        )
         resp = ctx.build_response("layoffs")
         assert resp["company"] == "meta.com"
         assert "events" in resp
@@ -441,6 +471,7 @@ class TestRunContext:
 # formatting.py
 # ───────────────────────────────
 
+
 class TestParseDate:
     def test_iso(self):
         assert parse_date("2026-01-16") == "2026-01-16"
@@ -449,12 +480,14 @@ class TestParseDate:
     def test_days_ago(self):
         result = parse_date("3 days ago")
         from datetime import datetime, timedelta
+
         expected = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
         assert result == expected
 
     def test_hours_ago(self):
         result = parse_date("5 hours ago")
         from datetime import datetime
+
         expected = datetime.now().strftime("%Y-%m-%d")
         assert result == expected
 
@@ -493,7 +526,9 @@ class TestFormatEvent:
             "content": "Meta announced layoffs...",
             "published_date": "2026-01-16",
         }
-        event = format_event(result, summary="AI summary here", content_type="novel_fact")
+        event = format_event(
+            result, summary="AI summary here", content_type="novel_fact"
+        )
         assert event["description"] == "AI summary here"
         assert event["content_type"] == "novel_fact"
 
@@ -516,7 +551,10 @@ class TestHeadlineHasNumbers:
 
 class TestExtractDateFromContent:
     def test_iso_in_content(self):
-        assert extract_date_from_content("On 2026-01-16, Meta announced...") == "2026-01-16"
+        assert (
+            extract_date_from_content("On 2026-01-16, Meta announced...")
+            == "2026-01-16"
+        )
 
     def test_no_date(self):
         assert extract_date_from_content("No dates here") == "Unknown"
@@ -525,6 +563,7 @@ class TestExtractDateFromContent:
 # ───────────────────────────────
 # answer_builder.py
 # ───────────────────────────────
+
 
 class TestBuildAnswers:
     def test_empty_events(self):
@@ -553,8 +592,22 @@ class TestBuildAnswers:
 
     def test_multiple_topics(self):
         events = [
-            {"headline": "E1", "description": "D1", "topic": "layoffs", "date": "2026-01-16", "source_name": "s1", "source_url": "u1"},
-            {"headline": "E2", "description": "D2", "topic": "earnings", "date": "2026-01-15", "source_name": "s2", "source_url": "u2"},
+            {
+                "headline": "E1",
+                "description": "D1",
+                "topic": "layoffs",
+                "date": "2026-01-16",
+                "source_name": "s1",
+                "source_url": "u1",
+            },
+            {
+                "headline": "E2",
+                "description": "D2",
+                "topic": "earnings",
+                "date": "2026-01-15",
+                "source_name": "s2",
+                "source_url": "u2",
+            },
         ]
         answers = build_answers(events, ["layoffs", "earnings"])
         assert len(answers) == 2
@@ -563,14 +616,31 @@ class TestBuildAnswers:
 
     def test_response_shape(self):
         """Verify the answer dict has all required v2 fields."""
-        events = [{"headline": "H", "description": "D", "topic": "t", "date": "d", "source_name": "s", "source_url": "u"}]
+        events = [
+            {
+                "headline": "H",
+                "description": "D",
+                "topic": "t",
+                "date": "d",
+                "source_name": "s",
+                "source_url": "u",
+            }
+        ]
         answers = build_answers(events, ["t"])
         a = answers[0]
-        assert set(a.keys()) >= {"topic", "validity", "confirmation", "timing", "summary", "valid_sources"}
+        assert set(a.keys()) >= {
+            "topic",
+            "validity",
+            "confirmation",
+            "timing",
+            "summary",
+            "valid_sources",
+        }
         assert set(a["validity"].keys()) >= {"is_valid", "statement", "confidence"}
-        assert set(a["confirmation"].keys()) >= {"is_confirmed", "statement", "source_name", "source_url"}
+        assert set(a["confirmation"].keys()) >= {
+            "is_confirmed",
+            "statement",
+            "source_name",
+            "source_url",
+        }
         assert set(a["timing"].keys()) >= {"happened_at", "statement"}
-
-
-# Ensure FrozenInstanceError is available for tests
-from dataclasses import FrozenInstanceError

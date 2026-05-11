@@ -7,7 +7,6 @@
 import os
 
 import pytest
-import pytest_asyncio
 
 from core.context import RunContext, TopicState
 from core.depth import ResearchDepthPolicy
@@ -25,6 +24,7 @@ skip_if_no_key = pytest.mark.skipif(
 
 # ── Helpers ──
 
+
 def _make_ctx(topic: str, depth: str = "cheap") -> RunContext:
     """Create a RunContext with the given topic."""
     policy = ResearchDepthPolicy.from_request(depth)
@@ -41,13 +41,18 @@ def _make_ctx(topic: str, depth: str = "cheap") -> RunContext:
 
 # ── _parse_keyword_list (pure) ──
 
+
 class TestParseKeywordList:
     def test_empty_string(self):
         assert _parse_keyword_list("") == []
 
     def test_json_array(self):
         text = '["layoffs", "job cuts", "workforce reduction"]'
-        assert _parse_keyword_list(text) == ["layoffs", "job cuts", "workforce reduction"]
+        assert _parse_keyword_list(text) == [
+            "layoffs",
+            "job cuts",
+            "workforce reduction",
+        ]
 
     def test_markdown_code_block(self):
         text = '```json\n["layoffs", "job cuts"]\n```'
@@ -59,11 +64,19 @@ class TestParseKeywordList:
 
     def test_no_json_fallback_to_lines(self):
         text = "layoffs\njob cuts\nworkforce reduction"
-        assert _parse_keyword_list(text) == ["layoffs", "job cuts", "workforce reduction"]
+        assert _parse_keyword_list(text) == [
+            "layoffs",
+            "job cuts",
+            "workforce reduction",
+        ]
 
     def test_comma_separated_fallback(self):
         text = "layoffs, job cuts, workforce reduction"
-        assert _parse_keyword_list(text) == ["layoffs", "job cuts", "workforce reduction"]
+        assert _parse_keyword_list(text) == [
+            "layoffs",
+            "job cuts",
+            "workforce reduction",
+        ]
 
     def test_deduplication(self):
         text = '["layoffs", "layoffs", "Job Cuts", "job cuts"]'
@@ -79,7 +92,11 @@ class TestParseKeywordList:
 
     def test_case_normalization(self):
         text = '["Layoffs", "JOB CUTS", "Workforce Reduction"]'
-        assert _parse_keyword_list(text) == ["layoffs", "job cuts", "workforce reduction"]
+        assert _parse_keyword_list(text) == [
+            "layoffs",
+            "job cuts",
+            "workforce reduction",
+        ]
 
     def test_mixed_valid_invalid(self):
         text = 'Some intro text ["layoffs", "cuts"] extra stuff'
@@ -87,6 +104,7 @@ class TestParseKeywordList:
 
 
 # ── _parse_query_list (pure) ──
+
 
 class TestParseQueryList:
     def test_empty_string(self):
@@ -106,7 +124,11 @@ class TestParseQueryList:
 
     def test_no_json_fallback_to_lines(self):
         text = "meta layoffs\nmeta job cuts\nmeta workforce reduction"
-        assert _parse_query_list(text) == ["meta layoffs", "meta job cuts", "meta workforce reduction"]
+        assert _parse_query_list(text) == [
+            "meta layoffs",
+            "meta job cuts",
+            "meta workforce reduction",
+        ]
 
     def test_deduplication(self):
         text = '["meta layoffs", "meta layoffs", "Meta Job Cuts"]'
@@ -115,7 +137,11 @@ class TestParseQueryList:
 
     def test_bullet_points_fallback(self):
         text = "- meta layoffs\n* meta job cuts\n• meta restructuring"
-        assert _parse_query_list(text) == ["meta layoffs", "meta job cuts", "meta restructuring"]
+        assert _parse_query_list(text) == [
+            "meta layoffs",
+            "meta job cuts",
+            "meta restructuring",
+        ]
 
     def test_empty_items_filtered(self):
         text = '["meta layoffs", "", "meta cuts"]'
@@ -129,6 +155,7 @@ class TestParseQueryList:
 
 
 # ── analyze() real API tests ──
+
 
 @skip_if_no_key
 class TestAnalyzeReal:
@@ -161,11 +188,9 @@ class TestAnalyzeReal:
         """Calling analyze twice with same topic returns cached keywords."""
         ctx1 = _make_ctx("earnings report")
         result1 = await analyze(ctx1)
-        tokens1 = result1.usage["total_tokens"]
 
         ctx2 = _make_ctx("earnings report")
         result2 = await analyze(ctx2)
-        tokens2 = result2.usage["total_tokens"]
 
         # Second call should reuse cached keywords (no extra tokens for keywords)
         # But simplification still happens (not cached)
@@ -202,6 +227,7 @@ class TestAnalyzeReal:
 
 
 # ── generate() real API tests ──
+
 
 @skip_if_no_key
 class TestGenerateReal:

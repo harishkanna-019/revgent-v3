@@ -66,9 +66,7 @@ def _check_circuit() -> None:
     """Raise SearchCircuitOpen if the circuit breaker is active."""
     if time.monotonic() < _circuit_open_until:
         remaining = int(_circuit_open_until - time.monotonic())
-        raise SearchCircuitOpen(
-            f"SearXNG circuit open, {remaining}s remaining"
-        )
+        raise SearchCircuitOpen(f"SearXNG circuit open, {remaining}s remaining")
 
 
 def _record_success() -> None:

@@ -79,7 +79,7 @@ def _parse_query_list(text: str) -> list[str]:
     start = text.find("[")
     end = text.rfind("]")
     if start != -1 and end != -1 and end > start:
-        text = text[start:end + 1]
+        text = text[start : end + 1]
 
     try:
         queries = json.loads(text)

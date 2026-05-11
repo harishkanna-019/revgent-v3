@@ -65,20 +65,30 @@ class RunContext:
         """True when the budget is exhausted."""
         return self.cost.is_exhausted
 
-    def record(self, usage: dict, item_id: str | None = None) -> None:
+    def record(
+        self,
+        usage: dict,
+        item_id: str | None = None,
+        model_cost: tuple[float, float] | None = None,
+    ) -> None:
         """Record token usage and cost for an LLM call.
 
         Args:
             usage: Dict with input_tokens, output_tokens, total_tokens
             item_id: Optional item identifier for direct cost attribution
+            model_cost: Optional (input_price_per_M, output_price_per_M) in USD.
+                Defaults to deepseek-v4-flash pricing ($0.055/M in, $0.11/M out).
+                This underestimates cost for expensive models (kimi-k2.6),
+                making budget enforcement slightly permissive at deep depth.
         """
         self.usage.add(usage)
-        # Convert tokens to approximate cost (OpenRouter pricing varies by model)
-        # Using a rough estimate: $1.50/M input tokens, $6.00/M output tokens
-        # This is updated by the caller with actual model pricing if needed
+        # Default: flash model pricing ($0.055/M input, $0.11/M output)
+        in_price, out_price = model_cost if model_cost else (0.055, 0.11)
         input_tokens = usage.get("input_tokens", 0)
         output_tokens = usage.get("output_tokens", 0)
-        estimated_cost = (input_tokens * 1.50 + output_tokens * 6.00) / 1_000_000
+        estimated_cost = (
+            input_tokens * in_price + output_tokens * out_price
+        ) / 1_000_000
         self.cost.record(estimated_cost, item_id=item_id, category="llm")
 
     def build_response(self, topic_name: str) -> dict:
@@ -106,7 +116,9 @@ class RunContext:
             "cost": self.cost.to_dict(),
             "budget": {
                 "requested": self.cost.budget,
-                "remaining": round(max(0.0, self.cost.budget - self.cost.total_cost), 8),
+                "remaining": round(
+                    max(0.0, self.cost.budget - self.cost.total_cost), 8
+                ),
                 "exhausted": self.cost.is_exhausted,
             },
         }

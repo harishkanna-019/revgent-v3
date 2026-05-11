@@ -93,7 +93,7 @@ def _parse_name_list(text: str, stem: str) -> list[str]:
     start = text.find("[")
     end = text.rfind("]")
     if start != -1 and end != -1 and end > start:
-        text = text[start:end + 1]
+        text = text[start : end + 1]
 
     try:
         names = json.loads(text)

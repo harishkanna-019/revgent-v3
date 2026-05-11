@@ -18,6 +18,7 @@ skip_if_no_key = pytest.mark.skipif(not _HAS_KEY, reason="OPENROUTER_API_KEY not
 
 # ── Helpers ──
 
+
 @pytest_asyncio.fixture(autouse=True)
 async def _init_llm():
     """Ensure LLM provider is initialized before each test."""
@@ -29,6 +30,7 @@ async def _init_llm():
 
 
 # ── Real API Tests ──
+
 
 @skip_if_no_key
 class TestLLMCallReal:
@@ -71,6 +73,7 @@ class TestLLMCallReal:
 
     async def test_concurrent_calls_respected_semaphore(self):
         """Many concurrent calls complete without exceeding semaphore limit."""
+
         # The semaphore is set to LLM_CONCURRENCY (default 24).
         # We launch 10 concurrent calls — all should succeed.
         async def _call(i: int):
@@ -169,7 +172,10 @@ class TestReasoningModelDetection:
     """Tests for reasoning model helper functions."""
 
     def test_deepseek_is_reasoning(self):
-        assert llm._is_reasoning_model("deepseek/deepseek-v4-flash:nitro") == (True, 256)
+        assert llm._is_reasoning_model("deepseek/deepseek-v4-flash:nitro") == (
+            True,
+            256,
+        )
         assert llm._is_reasoning_model("deepseek/deepseek-v4-pro") == (True, 256)
 
     def test_kimi_is_reasoning(self):
@@ -187,6 +193,7 @@ class TestRetryableErrorDetection:
     def _make_response(self, status_code: int):
         """Create a minimal httpx.Response with attached request for testing."""
         import httpx
+
         request = httpx.Request("POST", "https://openrouter.ai/api/v1/messages")
         return httpx.Response(status_code=status_code, request=request)
 

@@ -1,6 +1,5 @@
 """Scrape provider tests — real fetches when available, pure SSRF tests always."""
 
-import asyncio
 import ipaddress
 import socket
 
@@ -8,11 +7,7 @@ import pytest
 import pytest_asyncio
 
 from providers.scrape import (
-    MAX_REDIRECTS,
-    MIN_CONTENT_LENGTH,
     SSRFBlocked,
-    ScrapeError,
-    _follow_redirects_safely,
     _is_public_ip,
     _passes_quality_gate,
     _resolve_host,
@@ -35,6 +30,7 @@ skip_if_no_network = pytest.mark.skipif(not _HAS_NETWORK, reason="No network acc
 
 # ── Helpers ──
 
+
 @pytest_asyncio.fixture(autouse=True)
 async def _init_scrape():
     """Ensure scrape provider is initialized before each test."""
@@ -44,6 +40,7 @@ async def _init_scrape():
 
 
 # ── SSRF Protection Tests (pure, no network) ──
+
 
 class TestSSRFScheme:
     """SSRF scheme validation."""
@@ -86,7 +83,10 @@ class TestSSRFLocalhost:
     def test_127_blocked(self):
         with pytest.raises(SSRFBlocked) as exc:
             _validate_url_for_ssrf("http://127.0.0.1/admin")
-        assert "non-public" in str(exc.value).lower() or "localhost" in str(exc.value).lower()
+        assert (
+            "non-public" in str(exc.value).lower()
+            or "localhost" in str(exc.value).lower()
+        )
 
 
 class TestSSRFPrivateIPs:
@@ -176,6 +176,7 @@ class TestIsPublicIP:
 
 # ── Quality Gate Tests ──
 
+
 class TestQualityGate:
     """Tests for article quality gate."""
 
@@ -220,6 +221,7 @@ class TestQualityGate:
 
 # ── DNS Cache Tests ──
 
+
 class TestDNSCache:
     """Tests for DNS resolution caching."""
 
@@ -243,6 +245,7 @@ class TestDNSCache:
 
 
 # ── Real Network Tests ──
+
 
 @skip_if_no_network
 class TestScrapeReal:
@@ -286,6 +289,7 @@ class TestScrapeReal:
 
 
 # ── Lifecycle Tests ──
+
 
 class TestScrapeLifecycle:
     """Tests for init() / close() lifecycle."""

@@ -26,7 +26,7 @@ def _render_event(ev: Event) -> str:
     if hasattr(ev, "stage") and hasattr(ev, "out"):
         return f"  ✓ {ev.stage}: {ev.out} results"
     if hasattr(ev, "stage") and hasattr(ev, "item_id"):
-        return f"  • {ev.item_id[:60]:<60} → {ev.status}"
+        return f"  • {ev.item_id[:60]:<60} → {ev.status}"  # type: ignore[union-attr]
     if hasattr(ev, "spent"):
         return f"  $ spent=${ev.spent:.6f} remaining=${ev.remaining:.6f}"
     return f"  {ev}"
@@ -51,12 +51,14 @@ async def _main() -> None:
         help="Maximum USD cost (default: depth-dependent)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Print pipeline stage events",
     )
     parser.add_argument(
-        "--json", "-j",
+        "--json",
+        "-j",
         action="store_true",
         help="Output raw JSON response",
     )
@@ -78,6 +80,7 @@ async def _main() -> None:
         )
 
         if args.verbose:
+
             def emit(ev: Event) -> None:
                 print(_render_event(ev), file=sys.stderr)
         else:
@@ -89,15 +92,17 @@ async def _main() -> None:
             print(json.dumps(response, indent=2, default=str))
         else:
             # Human-readable summary
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Company: {response['company']}")
             print(f"Topic: {args.topic}")
             print(f"Depth: {args.depth}")
             print(f"Events: {len(response['events'])}")
             print(f"Signals: {len(response['signals'])}")
-            print(f"Cost: ${response['cost']['total_cost']:.6f} / ${response['budget']['requested']:.2f}")
+            print(
+                f"Cost: ${response['cost']['total_cost']:.6f} / ${response['budget']['requested']:.2f}"
+            )
             print(f"Usage: {response['usage']['total_tokens']} tokens")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             if response["events"]:
                 print("\n📰 Events:")

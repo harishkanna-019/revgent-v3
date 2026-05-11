@@ -3,6 +3,15 @@
 from dataclasses import dataclass, field
 
 
+# Model pricing: (input_price_per_1M, output_price_per_1M) in USD
+# See OpenRouter pricing page for current rates
+_MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "deepseek/deepseek-v4-flash:nitro": (0.055, 0.11),
+    "deepseek/deepseek-v4-pro:nitro": (0.89, 1.79),
+    "moonshotai/kimi-k2.6:nitro": (2.00, 8.00),
+}
+
+
 @dataclass(frozen=True)
 class ResearchDepthPolicy:
     """Immutable research depth configuration."""
@@ -22,10 +31,21 @@ class ResearchDepthPolicy:
         Task names: topic_simplification, keyword_generation, query_generation,
         validation, fact_check, summarization, classification
         """
-        return self.model_map.get(task, self.model_map.get("default", "deepseek/deepseek-v4-flash:nitro"))
+        return self.model_map.get(
+            task, self.model_map.get("default", "deepseek/deepseek-v4-flash:nitro")
+        )
+
+    def model_cost(self, model: str) -> tuple[float, float]:
+        """Return (input_price_per_M, output_price_per_M) for a model.
+
+        Falls back to flash pricing if model is unknown.
+        """
+        return _MODEL_PRICING.get(model, (0.055, 0.11))
 
     @classmethod
-    def from_request(cls, depth: str = "cheap", max_cost: float | None = None) -> "ResearchDepthPolicy":
+    def from_request(
+        cls, depth: str = "cheap", max_cost: float | None = None
+    ) -> "ResearchDepthPolicy":
         """Create a ResearchDepthPolicy from a request depth string.
 
         Args:
@@ -96,7 +116,11 @@ class ResearchDepthPolicy:
             },
         }
 
-        profile = profiles.get(depth, profiles["standard"])
+        if depth not in profiles:
+            raise ValueError(
+                f"Unknown depth '{depth}'. Must be one of: cheap, standard, deep"
+            )
+        profile = profiles[depth]
 
         # Cap budget at absolute max
         budget = profile["default_budget"]

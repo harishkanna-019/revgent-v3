@@ -10,7 +10,11 @@ class ToolResult:
 
     output: Any = None
     usage: dict = field(
-        default_factory=lambda: {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        default_factory=lambda: {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        },
     )
     item_id: str | None = None
 

@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta
 
-import pytest
 
 from filters.dedup import dedup_urls
 from filters.ranker import rank
@@ -18,6 +17,7 @@ _60_DAYS_AGO = (_TODAY - timedelta(days=60)).strftime("%Y-%m-%d")
 # ───────────────────────────────
 # dedup.py
 # ───────────────────────────────
+
 
 class TestDedup:
     def test_empty_list(self):
@@ -72,6 +72,7 @@ class TestDedup:
 # ───────────────────────────────
 # stop_protocol.py
 # ───────────────────────────────
+
 
 class TestStopProtocol:
     def test_all_pass(self):
@@ -353,13 +354,19 @@ class TestStopProtocol:
 # ranker.py
 # ───────────────────────────────
 
+
 class TestRanker:
     def test_empty_list(self):
         assert rank([], ["keyword"]) == []
 
     def test_single_result(self):
         results = [
-            {"title": "Test", "url": "https://example.com", "content": "content", "published_date": _30_DAYS_AGO}
+            {
+                "title": "Test",
+                "url": "https://example.com",
+                "content": "content",
+                "published_date": _30_DAYS_AGO,
+            }
         ]
         assert rank(results, ["test"]) == results
 
@@ -369,8 +376,18 @@ class TestRanker:
         old = (_TODAY - timedelta(days=60)).strftime("%Y-%m-%d")
 
         results = [
-            {"title": "Old News", "url": "https://example.com/old", "content": "old", "published_date": old},
-            {"title": "Today News", "url": "https://example.com/today", "content": "today", "published_date": today},
+            {
+                "title": "Old News",
+                "url": "https://example.com/old",
+                "content": "old",
+                "published_date": old,
+            },
+            {
+                "title": "Today News",
+                "url": "https://example.com/today",
+                "content": "today",
+                "published_date": today,
+            },
         ]
         ranked = rank(results, ["news"])
         assert ranked[0]["title"] == "Today News"
@@ -379,8 +396,18 @@ class TestRanker:
     def test_credible_domain_bonus(self):
         """Credible domains rank higher."""
         results = [
-            {"title": "Unknown Source", "url": "https://random-blog.com/news", "content": "news", "published_date": _30_DAYS_AGO},
-            {"title": "Reuters Report", "url": "https://reuters.com/news", "content": "news", "published_date": _30_DAYS_AGO},
+            {
+                "title": "Unknown Source",
+                "url": "https://random-blog.com/news",
+                "content": "news",
+                "published_date": _30_DAYS_AGO,
+            },
+            {
+                "title": "Reuters Report",
+                "url": "https://reuters.com/news",
+                "content": "news",
+                "published_date": _30_DAYS_AGO,
+            },
         ]
         ranked = rank(results, ["news"])
         assert ranked[0]["title"] == "Reuters Report"
@@ -409,8 +436,18 @@ class TestRanker:
     def test_headline_numbers_bonus(self):
         """Headlines with numbers get a bonus."""
         results = [
-            {"title": "No Numbers Here", "url": "https://a.com", "content": "c", "published_date": _30_DAYS_AGO},
-            {"title": "500 Layoffs", "url": "https://b.com", "content": "c", "published_date": _30_DAYS_AGO},
+            {
+                "title": "No Numbers Here",
+                "url": "https://a.com",
+                "content": "c",
+                "published_date": _30_DAYS_AGO,
+            },
+            {
+                "title": "500 Layoffs",
+                "url": "https://b.com",
+                "content": "c",
+                "published_date": _30_DAYS_AGO,
+            },
         ]
         ranked = rank(results, ["layoffs"])
         assert ranked[0]["title"] == "500 Layoffs"
@@ -418,8 +455,18 @@ class TestRanker:
     def test_content_length_bonus(self):
         """Longer content gets a bonus."""
         results = [
-            {"title": "Short", "url": "https://a.com", "content": "x" * 10, "published_date": _30_DAYS_AGO},
-            {"title": "Long", "url": "https://b.com", "content": "x" * 600, "published_date": _30_DAYS_AGO},
+            {
+                "title": "Short",
+                "url": "https://a.com",
+                "content": "x" * 10,
+                "published_date": _30_DAYS_AGO,
+            },
+            {
+                "title": "Long",
+                "url": "https://b.com",
+                "content": "x" * 600,
+                "published_date": _30_DAYS_AGO,
+            },
         ]
         ranked = rank(results, ["test"])
         assert ranked[0]["title"] == "Long"
@@ -427,8 +474,18 @@ class TestRanker:
     def test_stable_sort_equal_scores(self):
         """Equal scores preserve input order."""
         results = [
-            {"title": "First", "url": "https://a.com", "content": "c", "published_date": _30_DAYS_AGO},
-            {"title": "Second", "url": "https://b.com", "content": "c", "published_date": _30_DAYS_AGO},
+            {
+                "title": "First",
+                "url": "https://a.com",
+                "content": "c",
+                "published_date": _30_DAYS_AGO,
+            },
+            {
+                "title": "Second",
+                "url": "https://b.com",
+                "content": "c",
+                "published_date": _30_DAYS_AGO,
+            },
         ]
         ranked = rank(results, ["none"])
         assert ranked[0]["title"] == "First"

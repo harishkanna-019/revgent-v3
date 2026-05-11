@@ -44,7 +44,10 @@ def _is_retryable_error(exc: Exception) -> bool:
 
     # Check error message for overloaded/rate-limit indicators
     msg = str(exc).lower()
-    if any(word in msg for word in ("overloaded", "rate limit", "too many requests", "capacity")):
+    if any(
+        word in msg
+        for word in ("overloaded", "rate limit", "too many requests", "capacity")
+    ):
         return True
 
     return False
@@ -160,7 +163,8 @@ async def call(
                 usage = {
                     "input_tokens": response.usage.input_tokens,
                     "output_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                    "total_tokens": response.usage.input_tokens
+                    + response.usage.output_tokens,
                 }
                 return text, usage
 

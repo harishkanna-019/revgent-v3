@@ -81,11 +81,14 @@ async def format_one(ctx: RunContext, candidate: dict) -> ToolResult:
     url = candidate.get("url", "")
     item_id = url or title[:50]
 
-    model = ctx.policy.model_for_task("summarization")
+    summary_model = ctx.policy.model_for_task("summarization")
+    classification_model = ctx.policy.model_for_task("classification")
 
     # ── Concurrent LLM calls ──
-    summary_task = asyncio.create_task(_summarize(model, title, content))
-    classification_task = asyncio.create_task(_classify(model, title, content))
+    summary_task = asyncio.create_task(_summarize(summary_model, title, content))
+    classification_task = asyncio.create_task(
+        _classify(classification_model, title, content)
+    )
 
     summary, summary_usage = await summary_task
     content_type, classification_usage = await classification_task

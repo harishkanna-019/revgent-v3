@@ -2,7 +2,6 @@
 
 from core.context import RunContext
 from core.types import ToolResult
-from formatting import parse_date
 from providers import llm
 
 _RELEVANCE_PROMPT = """You are evaluating whether a news article is specifically about a company.
@@ -134,7 +133,11 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
     if relevance == "NO":
         ctx.record(total_usage, item_id=item_id)
         return ToolResult(
-            output={"result": None, "status": "not_about_company", "original": candidate},
+            output={
+                "result": None,
+                "status": "not_about_company",
+                "original": candidate,
+            },
             usage=total_usage,
             item_id=item_id,
         )

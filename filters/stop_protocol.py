@@ -5,21 +5,23 @@ from urllib.parse import urlparse
 
 # ── Excluded domains (13 social/media sites) ──
 
-EXCLUDED_DOMAINS = frozenset({
-    "facebook.com",
-    "twitter.com",
-    "x.com",
-    "linkedin.com",
-    "reddit.com",
-    "medium.com",
-    "tiktok.com",
-    "instagram.com",
-    "youtube.com",
-    "quora.com",
-    "tumblr.com",
-    "pinterest.com",
-    "threads.net",
-})
+EXCLUDED_DOMAINS = frozenset(
+    {
+        "facebook.com",
+        "twitter.com",
+        "x.com",
+        "linkedin.com",
+        "reddit.com",
+        "medium.com",
+        "tiktok.com",
+        "instagram.com",
+        "youtube.com",
+        "quora.com",
+        "tumblr.com",
+        "pinterest.com",
+        "threads.net",
+    }
+)
 
 
 def _extract_domain(url: str) -> str:

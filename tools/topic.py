@@ -47,7 +47,11 @@ async def analyze(ctx: RunContext) -> ToolResult:
     words = topic.strip().split()
     if len(words) <= 3:
         simplified = topic.strip().lower()
-        simplify_usage: dict = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        simplify_usage: dict = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
     else:
         model = ctx.policy.model_for_task("topic_simplification")
         prompt = _SIMPLIFY_PROMPT.format(topic=topic)
@@ -70,13 +74,18 @@ async def analyze(ctx: RunContext) -> ToolResult:
         keywords = _parse_keyword_list(text)
         return keywords, usage
 
-    keywords, keyword_usage = await _keyword_cache.get_or_compute(cache_key, _fetch_keywords)
+    keywords, keyword_usage = await _keyword_cache.get_or_compute(
+        cache_key, _fetch_keywords
+    )
 
     # ── Combine usage ──
     total_usage = {
-        "input_tokens": simplify_usage.get("input_tokens", 0) + keyword_usage.get("input_tokens", 0),
-        "output_tokens": simplify_usage.get("output_tokens", 0) + keyword_usage.get("output_tokens", 0),
-        "total_tokens": simplify_usage.get("total_tokens", 0) + keyword_usage.get("total_tokens", 0),
+        "input_tokens": simplify_usage.get("input_tokens", 0)
+        + keyword_usage.get("input_tokens", 0),
+        "output_tokens": simplify_usage.get("output_tokens", 0)
+        + keyword_usage.get("output_tokens", 0),
+        "total_tokens": simplify_usage.get("total_tokens", 0)
+        + keyword_usage.get("total_tokens", 0),
     }
 
     # Record cost on context
@@ -110,7 +119,7 @@ def _parse_keyword_list(text: str) -> list[str]:
     start = text.find("[")
     end = text.rfind("]")
     if start != -1 and end != -1 and end > start:
-        text = text[start:end + 1]
+        text = text[start : end + 1]
 
     try:
         keywords = json.loads(text)
@@ -128,7 +137,9 @@ def _parse_keyword_list(text: str) -> list[str]:
         pass
 
     # Fallback: split by commas or newlines
-    words = [w.strip().lower() for w in text.replace(",", "\n").split("\n") if w.strip()]
+    words = [
+        w.strip().lower() for w in text.replace(",", "\n").split("\n") if w.strip()
+    ]
     seen = set()
     result = []
     for w in words:

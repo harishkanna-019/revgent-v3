@@ -158,12 +158,12 @@ class TestParseNameList:
         assert names.count("meta") == 1
 
     def test_empty_array(self):
-        text = '[]'
+        text = "[]"
         names = company._parse_name_list(text, "meta")
         assert names == ["meta"]
 
     def test_invalid_json_fallback(self):
-        text = 'not json at all'
+        text = "not json at all"
         names = company._parse_name_list(text, "meta")
         assert names == ["meta"]
 

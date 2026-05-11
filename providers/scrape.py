@@ -18,13 +18,15 @@ MAX_REDIRECTS = 5
 MIN_CONTENT_LENGTH = 80
 
 # Error page markers that trigger quality gate rejection
-ERROR_MARKERS = frozenset({
-    "404 error",
-    "page not found",
-    "access denied",
-    "enable javascript",
-    "please enable cookies",
-})
+ERROR_MARKERS = frozenset(
+    {
+        "404 error",
+        "page not found",
+        "access denied",
+        "enable javascript",
+        "please enable cookies",
+    }
+)
 
 # ── Exceptions ──
 
@@ -69,7 +71,8 @@ def _resolve_host(hostname: str) -> list[str]:
         ips: list[str] = []
         for info in infos:
             sockaddr = info[4]
-            ip = sockaddr[0]
+            # sockaddr[0] is always a string IP for getaddrinfo
+            ip: str = sockaddr[0]  # type: ignore[assignment]
             if ip not in ips:
                 ips.append(ip)
         return ips
@@ -108,7 +111,9 @@ def _validate_url_for_ssrf(url: str) -> None:
 
     # 1. Scheme whitelist
     if parsed.scheme not in ("http", "https"):
-        raise SSRFBlocked(url, f"Scheme '{parsed.scheme}' not allowed (only http/https)")
+        raise SSRFBlocked(
+            url, f"Scheme '{parsed.scheme}' not allowed (only http/https)"
+        )
 
     hostname = parsed.hostname
     if not hostname:
@@ -126,10 +131,7 @@ def _validate_url_for_ssrf(url: str) -> None:
     # 4. Check every IP is public
     for ip in ips:
         if not _is_public_ip(ip):
-            raise SSRFBlocked(
-                url,
-                f"Host '{hostname}' resolves to non-public IP {ip}"
-            )
+            raise SSRFBlocked(url, f"Host '{hostname}' resolves to non-public IP {ip}")
 
 
 async def _follow_redirects_safely(
@@ -154,7 +156,9 @@ async def _follow_redirects_safely(
         except httpx.HTTPStatusError as exc:
             raise ScrapeError(current_url, f"HTTP {exc.response.status_code}") from exc
         except httpx.TimeoutException as exc:
-            raise ScrapeError(current_url, f"Timed out after {SCRAPE_TIMEOUT}s") from exc
+            raise ScrapeError(
+                current_url, f"Timed out after {SCRAPE_TIMEOUT}s"
+            ) from exc
         except Exception as exc:
             raise ScrapeError(current_url, str(exc)) from exc
 
@@ -165,6 +169,7 @@ async def _follow_redirects_safely(
                 raise ScrapeError(current_url, "Redirect without Location header")
             # Resolve relative URLs
             from urllib.parse import urljoin
+
             current_url = urljoin(current_url, location)
             continue
 

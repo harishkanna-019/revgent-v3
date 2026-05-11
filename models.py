@@ -37,7 +37,9 @@ class CostTracker:
 
     total_cost: float = 0.0
     budget: float = 0.0
-    breakdown: dict[str, float] = field(default_factory=lambda: {"llm": 0.0, "search": 0.0, "scrape": 0.0})
+    breakdown: dict[str, float] = field(
+        default_factory=lambda: {"llm": 0.0, "search": 0.0, "scrape": 0.0}
+    )
     # item_id -> accumulated direct cost for that item
     per_item: dict[str, float] = field(default_factory=dict)
     # Shared costs to amortize (e.g., topic analysis, query generation)
@@ -48,7 +50,9 @@ class CostTracker:
         """True when total cost has reached or exceeded the budget."""
         return self.total_cost >= self.budget
 
-    def record(self, cost: float, item_id: str | None = None, category: str = "llm") -> None:
+    def record(
+        self, cost: float, item_id: str | None = None, category: str = "llm"
+    ) -> None:
         """Record a cost.
 
         Args:
@@ -84,7 +88,9 @@ class CostTracker:
         self._shared_pending.clear()
         return amortized
 
-    def cost_for_item(self, item_id: str, amortized: dict[str, float] | None = None) -> float:
+    def cost_for_item(
+        self, item_id: str, amortized: dict[str, float] | None = None
+    ) -> float:
         """Total cost attributed to an item (direct + amortized shared)."""
         direct = self.per_item.get(item_id, 0.0)
         shared = amortized.get(item_id, 0.0) if amortized else 0.0
@@ -110,7 +116,9 @@ class ResearchSignal:
     date: str = ""
     source_name: str = ""
     source_url: str = ""
-    signal_type: str = ""  # market_speculation | unconfirmed | early_report | analyst_commentary
+    signal_type: str = (
+        ""  # market_speculation | unconfirmed | early_report | analyst_commentary
+    )
     confidence: float = 0.0
     why_not_event: str = ""
     cost_attribution: float = 0.0
