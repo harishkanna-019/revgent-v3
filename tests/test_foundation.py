@@ -117,23 +117,33 @@ class TestResearchDepthPolicy:
 
     def test_model_for_task_cheap(self):
         policy = ResearchDepthPolicy.from_request("cheap")
-        assert policy.model_for_task("validation") == "deepseek/deepseek-v4-flash"
-        assert policy.model_for_task("summarization") == "deepseek/deepseek-v4-flash"
+        assert policy.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
+        assert (
+            policy.model_for_task("summarization") == "deepseek/deepseek-v4-flash:nitro"
+        )
 
     def test_model_for_task_standard(self):
         policy = ResearchDepthPolicy.from_request("standard")
-        assert policy.model_for_task("validation") == "deepseek/deepseek-v4-flash"
-        assert policy.model_for_task("classification") == "deepseek/deepseek-v4-flash"
+        assert policy.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
+        assert (
+            policy.model_for_task("classification")
+            == "deepseek/deepseek-v4-flash:nitro"
+        )
 
     def test_model_for_task_deep(self):
         policy = ResearchDepthPolicy.from_request("deep")
-        assert policy.model_for_task("validation") == "moonshotai/kimi-k2.6"
-        assert policy.model_for_task("summarization") == "moonshotai/kimi-k2.6"
-        assert policy.model_for_task("query_generation") == "deepseek/deepseek-v4-pro"
+        assert policy.model_for_task("validation") == "moonshotai/kimi-k2.6:nitro"
+        assert policy.model_for_task("summarization") == "moonshotai/kimi-k2.6:nitro"
+        assert (
+            policy.model_for_task("query_generation")
+            == "deepseek/deepseek-v4-pro:nitro"
+        )
 
     def test_model_for_task_default_fallback(self):
         policy = ResearchDepthPolicy.from_request("cheap")
-        assert policy.model_for_task("unknown_task") == "deepseek/deepseek-v4-flash"
+        assert (
+            policy.model_for_task("unknown_task") == "deepseek/deepseek-v4-flash:nitro"
+        )
 
     def test_budget_cap(self):
         policy = ResearchDepthPolicy.from_request("cheap", max_cost=10.0)

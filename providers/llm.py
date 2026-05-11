@@ -131,7 +131,7 @@ async def call(
     """Call an LLM via OpenRouter with semaphore gating and retry.
 
     Args:
-        model: OpenRouter model identifier (e.g. "deepseek/deepseek-v4-flash")
+        model: OpenRouter model identifier (e.g. "deepseek/deepseek-v4-flash:nitro")
         max_tokens: Maximum tokens for the response
         prompt: User message content
         retries: Number of retry attempts on transient failures

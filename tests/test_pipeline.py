@@ -421,11 +421,13 @@ class TestPipelineReal:
         deep = ResearchDepthPolicy.from_request("deep")
 
         # Cheap and standard use flash for validation
-        assert cheap.model_for_task("validation") == "deepseek/deepseek-v4-flash"
-        assert standard.model_for_task("validation") == "deepseek/deepseek-v4-flash"
+        assert cheap.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
+        assert (
+            standard.model_for_task("validation") == "deepseek/deepseek-v4-flash:nitro"
+        )
 
         # Deep uses kimi-k2.6 for validation
-        assert deep.model_for_task("validation") == "moonshotai/kimi-k2.6"
+        assert deep.model_for_task("validation") == "moonshotai/kimi-k2.6:nitro"
 
     async def test_multiple_topics(self):
         """Pipeline handles multiple topics sequentially."""

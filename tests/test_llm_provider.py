@@ -39,7 +39,7 @@ class TestLLMCallReal:
     async def test_basic_call_returns_text_and_usage(self):
         """call() returns (text, usage_dict) with real OpenRouter."""
         text, usage = await llm.call(
-            model="deepseek/deepseek-v4-flash",
+            model="deepseek/deepseek-v4-flash:nitro",
             max_tokens=64,
             prompt="Say hello in one word.",
         )
@@ -60,7 +60,7 @@ class TestLLMCallReal:
         """
         try:
             text, usage = await llm.call(
-                model="deepseek/deepseek-v4-flash",
+                model="deepseek/deepseek-v4-flash:nitro",
                 max_tokens=32,
                 prompt="",
                 retries=1,
@@ -74,7 +74,7 @@ class TestLLMCallReal:
     async def test_call_with_longer_max_tokens(self):
         """Larger max_tokens allows longer responses."""
         text, usage = await llm.call(
-            model="deepseek/deepseek-v4-flash",
+            model="deepseek/deepseek-v4-flash:nitro",
             max_tokens=256,
             prompt="List 3 colors.",
         )
@@ -88,7 +88,7 @@ class TestLLMCallReal:
         # We launch 10 concurrent calls — all should succeed.
         async def _call(i: int):
             text, usage = await llm.call(
-                model="deepseek/deepseek-v4-flash",
+                model="deepseek/deepseek-v4-flash:nitro",
                 max_tokens=32,
                 prompt=f"Respond with the number {i} only.",
             )
@@ -132,7 +132,7 @@ class TestLLMLifecycle:
         assert llm._client is None
         # This should auto-init and succeed
         text, usage = await llm.call(
-            model="deepseek/deepseek-v4-flash",
+            model="deepseek/deepseek-v4-flash:nitro",
             max_tokens=32,
             prompt="Hi",
         )
