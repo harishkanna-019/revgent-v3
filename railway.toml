@@ -9,10 +9,11 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# No startCommand here - the Dockerfile's CMD already wraps uvicorn in
-# `sh -c "..."` so $PORT expands correctly. If we override startCommand
-# from railway.toml, Railway runs it without a shell and $PORT is passed
-# literally, which breaks startup.
+# Wrap in `sh -c "..."` so the shell expands $PORT at runtime.
+# Without the wrap, Railway exec's the command directly and $PORT
+# is passed to uvicorn as a literal string, which fails with:
+# "Error: Invalid value for '--port': '$PORT' is not a valid integer."
+startCommand = "sh -c 'uvicorn api:app --host 0.0.0.0 --port $PORT'"
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
