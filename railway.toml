@@ -9,7 +9,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "uvicorn api:app --host 0.0.0.0 --port $PORT"
+# No startCommand here - the Dockerfile's CMD already wraps uvicorn in
+# `sh -c "..."` so $PORT expands correctly. If we override startCommand
+# from railway.toml, Railway runs it without a shell and $PORT is passed
+# literally, which breaks startup.
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
