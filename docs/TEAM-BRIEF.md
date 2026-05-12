@@ -1,13 +1,11 @@
-# Revgent v3 — Team Brief
-
-**For:** Dominykas, Jack, the Revenanas team
+# Revgent V2 — Team Brief
 **From:** Harish
 **Date:** 2026-05-11
 **TL;DR:** We have a production-ready async signal engine that costs **~$7/month** to run on Railway and processes 1,000 companies for **~$0.63 in API fees**. It's 5× faster, 150× cheaper, and runs on 5× less infrastructure than the alternative Signal Engine prototype Jack built.
 
 ---
 
-## 1. What is revgent-v3?
+## 1. What is revgent-V2?
 
 A Python async service that takes `(company, topic, depth)` and returns structured news events about that company. Built for Clay batch enrichment via HTTP API.
 
@@ -198,7 +196,7 @@ error.
 ### Endpoint
 
 ```
-POST https://teaching-testimonials-punch-shots.trycloudflare.com/research/clay
+POST https://teaching-testimonials-punch-shots.trycloudflare.com/research/clay -> (only test)
 ```
 
 (Currently behind a Cloudflare tunnel — we'll swap to a permanent
@@ -262,25 +260,25 @@ See `docs/CLAY.md` for the full recipe.
 
 ## 7. Comparison with the other Signal Engine prototype
 
-Jack stood up an alternative "Signal Engine" while I built revgent-v3.
+Jack stood up an alternative "Signal Engine" while I built revgent-V2.
 Both solve the same problem. The execution diverges.
 
 ### Side-by-side
 
-| Dimension | **Signal Engine (Jack)** | **revgent-v3 (Harish)** | Winner |
+| Dimension | **Signal Engine (Jack)** | **revgent** | Winner |
 |---|---|---|---|
-| Concurrency | `ThreadPoolExecutor`, 5 workers | `asyncio.Semaphore` + `gather` | Ours |
-| LLM qualify stage | Sequential, 250 s for 34 groups | Parallel via `core.runner.parallel`, ~10 s | Ours (25×) |
-| Scrape stack | Firecrawl + Postgres + Redis (3 services) | trafilatura, in-process (0 sidecars) | Ours |
+| Concurrency | `ThreadPoolExecutor`, 5 workers | `asyncio.Semaphore` + `gather` | Revgent |
+| LLM qualify stage | Sequential, 250 s for 34 groups | Parallel via `core.runner.parallel`, ~10 s | Revgent (25×) |
+| Scrape stack | Firecrawl + Postgres + Redis (3 services) | trafilatura, in-process (0 sidecars) | Revgent |
 | Dedup | Embedding cosine sim, threshold 0.55 | URL + content-hash + keyword match | Mixed |
-| Date enforcement | Backlog item — LLM still surfaces old events | Topic-anchored validate + format date | Ours |
+| Date enforcement | Backlog item — LLM still surfaces old events | Topic-anchored validate + format date | Revgent |
 | Persistence | Supabase (5 tables) — fire-and-forget | Stateless | Theirs |
 | Cross-run dedup | Schema exists, stub returns False | None | Neither |
-| Wall time (Chipotle test) | 4.3 min | ~30-50 s | Ours (5×) |
-| Cost / run | ~$0.003 (their estimate; 10× higher in practice) | $0.0001–$0.0015 measured | Ours (~10×) |
-| Railway services | 6 (API, SearXNG, Firecrawl, FC-Postgres, FC-Redis + Supabase) | 2 (API, SearXNG) | Ours (3×) |
-| Tests | 60 | 138 pure / 334 with API keys | Ours |
-| Observability | `stage_reports` | `request_id`, `elapsed_ms`, `stage_trace`, structured logs | Ours |
+| Wall time (Chipotle test) | 4.3 min | ~30-50 s | Revgent (5×) |
+| Cost / run | ~$0.003 (their estimate; 10× higher in practice) | $0.0001–$0.0015 measured | Revgent (~10×) |
+| Railway services | 6 (API, SearXNG, Firecrawl, FC-Postgres, FC-Redis + Supabase) | 2 (API, SearXNG) | Revgent (3×) |
+| Tests | 60 | 138 pure / 334 with API keys | Revgent |
+| Observability | `stage_reports` | `request_id`, `elapsed_ms`, `stage_trace`, structured logs | Revgent |
 
 ### Flaws in the Signal Engine architecture
 
@@ -321,19 +319,19 @@ already-seen URLs and pay nothing. Real gap for us.
 
 ### Cost projection — both at 1k Clay rows/day
 
-| | Signal Engine | revgent-v3 |
+| | Signal Engine | revgent-V2 |
 |---|---:|---:|
 | OpenRouter API | ~$3,000/mo (their qualify stage is slow & sequential) | ~$20/mo |
 | Railway infra | ~$35/mo (6 services) | ~$7/mo (2 services) |
 | Wall time per row | 4.3 min | 30–50 s |
 | **Monthly total at 1k/day** | **~$3,035** | **~$27** |
 
-(Their "<$0.01/run" figure scales linearly; ours scales linearly.
+(Their "<$0.01/run" figure scales linearly; Revgent scales linearly.
 The 100× gap is real and reproducible.)
 
 ### Recommended path forward
 
-**Build on revgent-v3. Cherry-pick three ideas from Signal Engine.**
+**Build on revgent-V2. Cherry-pick three ideas from Signal Engine.**
 
 | Priority | Add | From | Effort | Why |
 |---|---|---|---|---|
@@ -348,39 +346,11 @@ ThreadPoolExecutor, sequential LLM, embedding clustering at dedup.
 
 ## 8. What's done
 
-Ten vertical slices, ten commits, in dependency order.
-Numbers in brackets are commit shorthands; full hashes in `git log`.
-
-| # | Slice | What it does | Commit |
-|---|---|---|---|
-| 1 | Foundation | `models.py`, `cache.py`, `formatting.py`, `answer_builder.py`, `core/types.py`, `core/context.py`, `core/runner.py`, `core/depth.py` | initial scaffold |
-| 2 | LLM + company | `providers/llm.py`, `tools/company.py` — alias resolution | a445621 |
-| 3 | Search + filters | `providers/search.py`, `filters/dedup.py`, `filters/stop_protocol.py`, `filters/ranker.py` | 269595e |
-| 4 | Scrape + SSRF | `providers/scrape.py` with private-IP guard | (foundation) |
-| 5 | Topic + queries | `tools/topic.py`, `tools/queries.py` | (foundation) |
-| 6 | Validate + format + signals | `tools/validate.py`, `tools/format.py`, `filters/signals.py` | (foundation) |
-| 7 | Pipeline + CLI | `core/pipeline.py` (11 stages), `cli.py` | (foundation) |
-| 8 | Standard + deep depth | Adds per-depth models, max_workers, timeouts | (foundation) |
-| 9 | API + deployment | `api.py`, `Dockerfile`, `.dockerignore`, `railway.toml` | 5e23796 |
-| 10 | Stress harness | `scripts/stress.py` (psutil), `scripts/stress_http.py` (docker stats) | 5e23796 |
-
-Plus 9 follow-up fixes after live Clay traffic:
-
-| Fix | Commit |
-|---|---|
-| Real OpenRouter integration (switch from anthropic SDK to httpx + OpenAI-compat) | 3f29265 |
-| Restore `:nitro` suffix on model identifiers | d728969 |
-| Clay-flat endpoint + optional `X-Api-Key` auth + `docs/CLAY.md` | bc1907a |
-| Topic-stamping fix on LLM-formatted events; sharpen relevance prompt | 9d7df40 |
-| Cheap-depth recall fix (canonical names + 50-synonym map) | 691da6a |
-| Standard-depth recall fix (punctuation-tolerant keyword match, longer timeouts, `stage_trace`) | 00e63c8 |
-| False-positive fix on multi-company digests + wrong-primary picker | 0daf6ce |
-
 **Test totals**: 138 pure tests pass without keys; 334 pass with
 `OPENROUTER_API_KEY` + `SEARXNG_URL`. Zero failures.
 
 **Live infrastructure**:
-- Docker image `revgent-v3:test`, 265 MB
+- Docker image `revgent-V2:test`, 265 MB
 - Container running locally on `:8766`, 512 MB cap
 - Cloudflare tunnel: `https://teaching-testimonials-punch-shots.trycloudflare.com`
 - API key: stored in `/tmp/revgent_clay_key.txt`
@@ -424,7 +394,7 @@ Per-request fields (in the JSON body):
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | Health check |
-| POST | `/research` | Full v3 response (nested) |
+| POST | `/research` | Full V2 response (nested) |
 | POST | `/research/clay` | Flat scalars for Clay column mapping |
 | POST | `/research/async` | Returns `request_id`, processes in background |
 
@@ -437,14 +407,14 @@ All `/research*` endpoints honor optional `X-Api-Key`.
 ### Local (Docker)
 
 ```bash
-docker build -t revgent-v3:test .
+docker build -t revgent-V2:test .
 docker run -d --name revgent \
   -e OPENROUTER_API_KEY="..." \
   -e SEARXNG_URL="http://host.docker.internal:8888" \
   -e REVGENT_API_KEY="$(openssl rand -hex 16)" \
   -p 8000:8000 \
   --memory=512m --cpus=1.0 \
-  revgent-v3:test
+  revgent-V2:test
 ```
 
 ### Railway (production)
