@@ -35,14 +35,16 @@ logger = logging.getLogger("revgent.api")
 
 ABSOLUTE_MAX_COST = float(os.environ.get("ABSOLUTE_MAX_COST", "5.0"))
 
-# Per-depth wall-clock timeout. Scrape of 5 sites + 5 parallel validates +
-# 5 parallel formats can easily eat 60s when news sites are slow. Generous
-# numbers - the pipeline checks budget between stages and returns partial
-# results if it runs out anyway.
+# Per-depth wall-clock timeout. These MUST stay under Clay's HTTP API
+# column max timeout (100s) so Clay always receives a structured response
+# instead of giving up at 100s and showing "Timed out" to the user.
+# When we time out, the pipeline returns a partial response with
+# is_valid=false and a stage_trace showing how far we got - which Clay
+# can render and the user can debug.
 _DEPTH_TIMEOUTS = {
-    "cheap": 45.0,
-    "standard": 120.0,
-    "deep": 240.0,
+    "cheap": 25.0,     # well under Clay's 30s default for cheap
+    "standard": 90.0,  # under Clay's 100s ceiling with margin for network
+    "deep": 240.0,     # deep is async-only - Clay should never call deep directly
 }
 
 # Optional shared-secret auth. If REVGENT_API_KEY is set, /research and

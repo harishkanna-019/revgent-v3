@@ -434,13 +434,16 @@ class TestDepthTimeouts:
         """Cheap depth has a 30-60s timeout."""
         from api import _DEPTH_TIMEOUTS
 
-        assert 30.0 <= _DEPTH_TIMEOUTS["cheap"] <= 60.0
+        # Cheap must stay under Clay's 30s default response timeout.
+        assert 15.0 <= _DEPTH_TIMEOUTS["cheap"] <= 30.0
 
     def test_standard_timeout(self):
         """Standard depth has a 60-180s timeout."""
         from api import _DEPTH_TIMEOUTS
 
-        assert 60.0 <= _DEPTH_TIMEOUTS["standard"] <= 180.0
+        # Standard must stay under Clay's 100s HTTP API column max
+        # so Clay always gets a structured response, never "Timed out".
+        assert 60.0 <= _DEPTH_TIMEOUTS["standard"] < 100.0
 
     def test_deep_timeout(self):
         """Deep depth has a 120-300s timeout."""
