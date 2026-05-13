@@ -106,19 +106,20 @@ class TestCircuitBreaker:
         search.SEARXNG_URL = "http://localhost:59999"  # no server here
 
         try:
-            # First failure
-            with pytest.raises(RuntimeError):
-                await search.search("test")
-            assert search._consecutive_failures == 1
-            assert search._circuit_open_until == 0
+            # Failures 1 through 4: counter increments, circuit stays closed
+            for i in range(1, search.CIRCUIT_FAILURE_THRESHOLD):
+                with pytest.raises(RuntimeError):
+                    await search.search("test")
+                assert search._consecutive_failures == i
+                assert search._circuit_open_until == 0
 
-            # Second failure
+            # Failure at threshold: circuit opens
             with pytest.raises(RuntimeError):
                 await search.search("test")
-            assert search._consecutive_failures == 2
+            assert search._consecutive_failures == search.CIRCUIT_FAILURE_THRESHOLD
             assert search._circuit_open_until > time.monotonic()
 
-            # Third call should raise SearchCircuitOpen immediately
+            # Next call should raise SearchCircuitOpen immediately
             with pytest.raises(search.SearchCircuitOpen) as exc_info:
                 await search.search("test")
             assert "circuit open" in str(exc_info.value).lower()

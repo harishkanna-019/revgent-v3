@@ -14,8 +14,8 @@ from formatting import parse_date
 # Constants (compile-time, no env)
 SEARCH_TIMEOUT = 15.0  # seconds per query
 SEARCH_CACHE_TTL = 60  # seconds
-CIRCUIT_FAILURE_THRESHOLD = 2
-CIRCUIT_COOLDOWN_SECONDS = 30
+CIRCUIT_FAILURE_THRESHOLD = 5
+CIRCUIT_COOLDOWN_SECONDS = 15
 
 # Env-driven settings are resolved inside init() so tests and runtime can set
 # them after import (e.g., via .env loading or fixtures).

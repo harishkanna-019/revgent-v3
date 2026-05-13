@@ -338,12 +338,19 @@ async def run(
             _emit(StageStart(stage="search", count=len(ctx.topic.queries)))
 
             from providers import search as search_provider
+            from providers.search import SearchCircuitOpen
 
-            search_results = await search_provider.search_many(
-                ctx.topic.queries,
-                max_days=ctx.date_max,
-                limit=10,
-            )
+            try:
+                search_results = await search_provider.search_many(
+                    ctx.topic.queries,
+                    max_days=ctx.date_max,
+                    limit=10,
+                )
+            except SearchCircuitOpen:
+                # Circuit breaker is open — SearXNG is temporarily
+                # unavailable. Return partial response with 0 results
+                # instead of crashing the entire request with a 500.
+                search_results = []
 
             _emit(StageEnd(stage="search", out=len(search_results)))
             _emit_budget()
