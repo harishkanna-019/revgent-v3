@@ -20,7 +20,7 @@ class RunContext:
     """Per-request mutable state. Never shared across requests.
 
     Immutable fields (set at creation):
-        policy, company, topics, date_min, date_max
+        policy, company, topics, date_min, date_max, strict_date
 
     Mutable accumulators:
         cost, usage, events, signals, topic
@@ -32,6 +32,7 @@ class RunContext:
         "topics",
         "date_min",
         "date_max",
+        "strict_date",
         "cost",
         "usage",
         "events",
@@ -46,12 +47,14 @@ class RunContext:
         topics: list[str],
         date_min: int,
         date_max: int,
+        strict_date: bool = False,
     ):
         self.policy = policy
         self.company = company
         self.topics = topics
         self.date_min = date_min
         self.date_max = date_max
+        self.strict_date = strict_date
 
         # Mutable accumulators
         self.cost = CostTracker(budget=policy.default_budget)

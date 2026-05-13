@@ -52,12 +52,28 @@ def _is_credible_domain(url: str) -> bool:
 
 
 def _score_recency(published_date: str) -> int:
-    """Score based on how recent the article is."""
+    """Score based on how recent the article is.
+
+    Known recent dates get a positive bonus. Articles with Unknown or
+    unparseable dates get a NEGATIVE score (-25) to ensure they sink
+    below any article with a known date - even one that benefits from
+    a credible-domain (+10) and headline-numbers (+5) bonus. Without
+    a strong-enough penalty, a punchy old headline like '150 Million
+    Affected in 2018 Breach' (Unknown date) could still outrank a real
+    recent article on an obscure domain.
+
+    Future-dated articles are also penalized (-25). These are almost
+    always typos or scheduled-publish artifacts in source metadata,
+    not real news. We don't want a date typo to dominate the rank.
+    """
     if not published_date or published_date == "Unknown":
-        return 0
+        return -25
     try:
         dt = datetime.strptime(published_date, "%Y-%m-%d")
         age = datetime.now() - dt
+        # Negative age = published in the future. Treat as garbage data.
+        if age < timedelta(0):
+            return -25
         if age <= timedelta(days=1):
             return 30
         if age <= timedelta(days=7):
@@ -66,9 +82,12 @@ def _score_recency(published_date: str) -> int:
             return 10
         if age <= timedelta(days=90):
             return 5
-        return 0
+        # Older than 90 days but still has a date — minor penalty.
+        # We treat "old with a date" as better than "date unknown"
+        # because at least the date check in stop_protocol could vet it.
+        return -5
     except ValueError:
-        return 0
+        return -25
 
 
 def _score_keyword_matches(text: str, keywords: list[str]) -> tuple[int, int]:
@@ -108,7 +127,8 @@ def rank(candidates: list[dict], topic_keywords: list[str]) -> list[dict]:
     """Rank candidates by metadata signals.
 
     Scoring factors:
-    - Recency: ≤1 day (+30), ≤7 days (+20), ≤30 days (+10), ≤90 days (+5)
+    - Recency: ≤1 day (+30), ≤7 days (+20), ≤30 days (+10), ≤90 days (+5),
+      >90 days with known date (-5), Unknown/unparseable date (-15)
     - Keyword match in title: +15 per keyword
     - Keyword match in content: +5 per keyword
     - Source credibility: +10 for known credible domains

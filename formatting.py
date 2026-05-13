@@ -35,6 +35,21 @@ def parse_date(date_str: str) -> str:
         dt = datetime.now()
         return dt.strftime("%Y-%m-%d")
 
+    # Strip trailing source attribution from bing news metadata format,
+    # e.g. '1/30/2026 | AOL' -> '1/30/2026' or 'Jan 30, 2026 | Reuters' -> 'Jan 30, 2026'
+    if "|" in date_str:
+        date_str = date_str.split("|", 1)[0].strip()
+
+    if not date_str:
+        return "Unknown"
+
+    # MM/DD/YYYY (US format, bing news convention)
+    try:
+        dt = datetime.strptime(date_str, "%m/%d/%Y")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+
     # DD/MM/YYYY
     try:
         dt = datetime.strptime(date_str, "%d/%m/%Y")
@@ -48,6 +63,23 @@ def parse_date(date_str: str) -> str:
         return date_str
     except ValueError:
         pass
+
+    # "Mon DD, YYYY" / "Month DD, YYYY" (Bing News US wire format)
+    # Try abbreviated month first since it's more common in feed metadata.
+    for fmt in ("%b %d, %Y", "%B %d, %Y"):
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    # "DD Mon YYYY" / "DD Month YYYY" (UK/EU wire format - Reuters, Guardian)
+    for fmt in ("%d %b %Y", "%d %B %Y"):
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
 
     return "Unknown"
 

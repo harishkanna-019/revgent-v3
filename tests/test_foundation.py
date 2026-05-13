@@ -502,6 +502,55 @@ class TestParseDate:
         assert parse_date("Unknown") == "Unknown"
         assert parse_date("not a date") == "Unknown"
 
+    def test_mm_dd_yyyy_us_format(self):
+        """Bing News metadata uses MM/DD/YYYY US format.
+
+        Regression: SearXNG bing-news engine returns 'metadata': '1/30/2026 | AOL'
+        which means Jan 30, 2026 in US convention. Without this format support
+        we were dropping ~30% of news-feed dates as Unknown.
+        """
+        assert parse_date("1/30/2026") == "2026-01-30"
+        assert parse_date("01/30/2026") == "2026-01-30"
+        assert parse_date("12/15/2025") == "2025-12-15"
+
+    def test_source_attribution_stripped(self):
+        """Strip the '| Source' suffix Bing News appends to metadata.
+
+        Regression: 'metadata' field from bing news is 'DATE | SOURCE'.
+        Without stripping we got Unknown on every bing news result.
+        """
+        assert parse_date("1/30/2026 | AOL") == "2026-01-30"
+        assert parse_date("Jan 30, 2026 | Reuters") == "2026-01-30"
+        assert parse_date("2026-01-30 | NYT") == "2026-01-30"
+        # Empty before pipe is still Unknown.
+        assert parse_date("| AOL") == "Unknown"
+
+    def test_month_name_us_format(self):
+        """'Month DD, YYYY' US wire format (AP, NYT, WSJ)."""
+        assert parse_date("Jan 30, 2026") == "2026-01-30"
+        assert parse_date("January 30, 2026") == "2026-01-30"
+        assert parse_date("Dec 31, 2025") == "2025-12-31"
+        assert parse_date("Jan 5, 2026") == "2026-01-05"
+
+    def test_month_name_uk_format(self):
+        """'DD Month YYYY' UK/EU wire format (Reuters, Guardian, FT)."""
+        assert parse_date("30 January 2026") == "2026-01-30"
+        assert parse_date("30 Jan 2026") == "2026-01-30"
+        assert parse_date("5 January 2026") == "2026-01-05"
+
+    def test_invalid_dates(self):
+        """Component-invalid dates should return Unknown, not crash."""
+        assert parse_date("2026-13-01") == "Unknown"  # month 13
+        assert parse_date("2026-02-30") == "Unknown"  # Feb 30
+        assert parse_date("99/99/9999") == "Unknown"
+        assert parse_date("Foo 30, 2026") == "Unknown"  # invalid month name
+
+    def test_whitespace_handling(self):
+        """Leading / trailing whitespace and tabs / newlines are stripped."""
+        assert parse_date("   2026-01-30   ") == "2026-01-30"
+        assert parse_date("\t2026-01-30\n") == "2026-01-30"
+        assert parse_date("1/30/2026 | ") == "2026-01-30"
+
 
 class TestFormatEvent:
     def test_basic(self):

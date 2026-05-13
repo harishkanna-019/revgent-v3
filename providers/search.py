@@ -134,9 +134,17 @@ def _parse_searxng_result(raw: dict) -> dict:
     url = raw.get("url", "")
     content = raw.get("content", "") or raw.get("body", "") or ""
 
-    # Date parsing
+    # Date parsing. SearXNG engines populate different fields:
+    #   bing news       -> pubdate ('2026-01-30 00:00:00') AND metadata
+    #                      ('1/30/2026 | AOL') - publishedDate is None
+    #   qwant news      -> publishedDate ('2026-05-12T16:09:00') in ISO
+    #   duckduckgo news -> publishedDate ('2025-08-25T00:08:00') in ISO
+    # We try fields in order of reliability and short-circuit on first hit.
+    # 'metadata' is checked last because it's both noisy ('6 days ago | CBS')
+    # and locale-specific ('1/30/2026' could be Jan 30 or Mar 1 depending
+    # on locale, but US-format is the bing news convention).
     published_date = "Unknown"
-    for field in ("publishedDate", "published_date", "date", "metadata"):
+    for field in ("publishedDate", "published_date", "pubdate", "date", "metadata"):
         val = raw.get(field)
         if val and isinstance(val, str) and val.strip():
             parsed = parse_date(val.strip())

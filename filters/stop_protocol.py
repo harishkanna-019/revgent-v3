@@ -111,12 +111,15 @@ def apply_stop_protocol(
     min_days: int,
     max_days: int,
     topic_keywords: list[str],
+    strict_date: bool = False,
 ) -> list[dict]:
     """Apply the four-stage stop protocol to filter search results.
 
     Stages (applied in order):
     1. Date check — published_date within [today - max_days, today - min_days].
-       Missing date passes (SearXNG results often lack dates).
+       Default behavior: missing date passes (SearXNG often lacks dates).
+       strict_date=True: missing dates are rejected. Use this when the
+       caller cares about date-window accuracy more than recall.
     2. Source credibility — reject excluded domains.
     3. Topic relevance — at least one keyword from topic_keywords must appear
        in title or content. Empty keywords → all rejected.
@@ -130,13 +133,23 @@ def apply_stop_protocol(
         min_days: Minimum age in days (inclusive).
         max_days: Maximum age in days (inclusive).
         topic_keywords: Keywords for topic relevance filtering.
+        strict_date: If True, drop candidates with Unknown publication dates
+            instead of passing them through. Defaults to False for backward
+            compatibility.
 
     Returns:
         Filtered list of results passing all stages.
     """
-    today = datetime.now()
+    # Zero out the time component so an article dated "exactly N days ago"
+    # isn't off-by-one due to today being 14:32 and the parsed date being
+    # 00:00. Without this, a date_max=90 request silently drops articles
+    # published on the 90th day before today.
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     min_date = today - timedelta(days=max_days)
-    max_date = today - timedelta(days=min_days)
+    # Add 1 day to max_date so today itself is included even when articles
+    # are tagged with mid-day timestamps. With time zeroed, today's article
+    # parses to today 00:00; we want it <= today 23:59:59.
+    max_date = today - timedelta(days=min_days) + timedelta(days=1)
 
     filtered: list[dict] = []
 
@@ -148,7 +161,13 @@ def apply_stop_protocol(
             # Date is known — check window
             if not (min_date <= parsed <= max_date):
                 continue
-        # If date is Unknown, pass through
+        elif strict_date:
+            # Date is Unknown AND caller asked for strict mode — drop it.
+            # This is the right behavior when the caller wants high precision
+            # on the date window (e.g., "only show me layoffs from the last
+            # 30 days, not stale 2018 breaches that lost their date).
+            continue
+        # else: date is Unknown and strict_date is False — pass through
 
         # ── Stage 2: Source credibility ──
         url = r.get("url", "")

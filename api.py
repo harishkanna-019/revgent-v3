@@ -42,9 +42,9 @@ ABSOLUTE_MAX_COST = float(os.environ.get("ABSOLUTE_MAX_COST", "5.0"))
 # is_valid=false and a stage_trace showing how far we got - which Clay
 # can render and the user can debug.
 _DEPTH_TIMEOUTS = {
-    "cheap": 25.0,     # well under Clay's 30s default for cheap
+    "cheap": 25.0,  # well under Clay's 30s default for cheap
     "standard": 90.0,  # under Clay's 100s ceiling with margin for network
-    "deep": 240.0,     # deep is async-only - Clay should never call deep directly
+    "deep": 240.0,  # deep is async-only - Clay should never call deep directly
 }
 
 # Optional shared-secret auth. If REVGENT_API_KEY is set, /research and
@@ -207,6 +207,15 @@ class ResearchRequest(BaseModel):
     )
     date_min: int = Field(default=0, description="Minimum days ago")
     date_max: int = Field(default=90, description="Maximum days ago")
+    strict_date: bool = Field(
+        default=False,
+        description=(
+            "If true, drop candidates with Unknown publication dates instead "
+            "of passing them through. Use this when you care more about "
+            "date-window accuracy than recall (e.g., avoiding stale articles "
+            "that lost their date in indexing)."
+        ),
+    )
 
     @field_validator("company")
     @classmethod
@@ -258,6 +267,10 @@ class AsyncResearchRequest(BaseModel):
     )
     date_min: int = Field(default=0, description="Minimum days ago")
     date_max: int = Field(default=90, description="Maximum days ago")
+    strict_date: bool = Field(
+        default=False,
+        description="Drop candidates with Unknown dates instead of passing through.",
+    )
     webhook_url: str = Field(..., description="URL to POST results to when complete")
 
     @field_validator("company")
@@ -387,6 +400,7 @@ async def research(
         topics=req.topics,
         date_min=req.date_min,
         date_max=req.date_max,
+        strict_date=req.strict_date,
     )
 
     timeout = _DEPTH_TIMEOUTS.get(req.depth, 30.0)
@@ -433,6 +447,7 @@ async def research_clay(
         topics=req.topics,
         date_min=req.date_min,
         date_max=req.date_max,
+        strict_date=req.strict_date,
     )
     timeout = _DEPTH_TIMEOUTS.get(req.depth, 30.0)
     try:
@@ -528,6 +543,7 @@ async def research_async(
             topics=req.topics,
             date_min=req.date_min,
             date_max=req.date_max,
+            strict_date=req.strict_date,
         )
         timeout = _DEPTH_TIMEOUTS.get(req.depth, 30.0)
         result = await run(ctx, timeout_seconds=timeout)

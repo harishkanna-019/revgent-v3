@@ -321,6 +321,129 @@ class TestStopProtocol:
         )
         assert len(filtered) == 1
 
+    def test_strict_date_drops_unknown_dates(self):
+        """With strict_date=True, Unknown-date candidates are dropped.
+
+        Regression: real Clay traffic surfaced an 8-year-old Under Armour
+        breach article and a 4-year-old Twitch breach article. Both had
+        Unknown dates from SearXNG and slipped past the date window.
+        With strict_date=True, those would have been correctly dropped.
+        """
+        results = [
+            {
+                "title": "150 Million Affected in Under Armour Breach",
+                "url": "https://example.com/old",
+                "content": "breach content from 2018",
+                "published_date": "Unknown",
+            },
+            {
+                "title": "Real recent breach",
+                "url": "https://example.com/recent",
+                "content": "breach happened yesterday",
+                "published_date": (datetime.now() - timedelta(days=2)).strftime(
+                    "%Y-%m-%d"
+                ),
+            },
+        ]
+        filtered = apply_stop_protocol(
+            results,
+            topic="breach",
+            company_names=None,
+            min_days=0,
+            max_days=90,
+            topic_keywords=["breach"],
+            strict_date=True,
+        )
+        # Only the dated article survives - the Unknown one is dropped.
+        assert len(filtered) == 1
+        assert filtered[0]["url"] == "https://example.com/recent"
+
+    def test_boundary_day_max_is_inclusive(self):
+        """An article published exactly date_max days ago must pass the filter.
+
+        Regression: stop_protocol used datetime.now() (with current time-of-day)
+        as the upper bound and strptime('%Y-%m-%d') (which returns 00:00:00) as
+        the article timestamp. An article from exactly N days ago has
+        timestamp = today_midnight - Nd. The min_date was today_now - Nd which
+        is LATER than today_midnight - Nd, so the boundary article was
+        silently dropped. Same bug at the upper bound for today's articles.
+        """
+        today = datetime.now()
+        results = [
+            {
+                "title": "Day 90 article",
+                "url": "https://example.com/d90",
+                "content": "breach content",
+                "published_date": (today - timedelta(days=90)).strftime("%Y-%m-%d"),
+            },
+            {
+                "title": "Day 91 article (out of window)",
+                "url": "https://example.com/d91",
+                "content": "breach content",
+                "published_date": (today - timedelta(days=91)).strftime("%Y-%m-%d"),
+            },
+            {
+                "title": "Today article",
+                "url": "https://example.com/today",
+                "content": "breach content",
+                "published_date": today.strftime("%Y-%m-%d"),
+            },
+        ]
+        out = apply_stop_protocol(
+            results,
+            topic="breach",
+            company_names=None,
+            min_days=0,
+            max_days=90,
+            topic_keywords=["breach"],
+        )
+        titles = {r["title"] for r in out}
+        assert "Day 90 article" in titles  # boundary must be inclusive
+        assert "Today article" in titles  # today must be inclusive
+        assert "Day 91 article (out of window)" not in titles
+
+    def test_future_dates_dropped_by_stop_protocol(self):
+        """Articles dated in the future are dropped (likely typos or scheduled posts)."""
+        today = datetime.now()
+        results = [
+            {
+                "title": "Future-dated typo",
+                "url": "https://example.com/future",
+                "content": "breach content",
+                "published_date": (today + timedelta(days=5)).strftime("%Y-%m-%d"),
+            }
+        ]
+        out = apply_stop_protocol(
+            results,
+            topic="breach",
+            company_names=None,
+            min_days=0,
+            max_days=90,
+            topic_keywords=["breach"],
+        )
+        assert len(out) == 0
+
+    def test_strict_date_default_is_false(self):
+        """Default strict_date=False keeps the existing pass-through behavior."""
+        results = [
+            {
+                "title": "Old article",
+                "url": "https://example.com/old",
+                "content": "layoff content",
+                "published_date": "Unknown",
+            }
+        ]
+        # Not passing strict_date - should default to False.
+        filtered = apply_stop_protocol(
+            results,
+            topic="layoff",
+            company_names=None,
+            min_days=0,
+            max_days=90,
+            topic_keywords=["layoff"],
+        )
+        assert len(filtered) == 1
+
     def test_keyword_in_title(self):
         """Keyword match in title passes."""
         results = [
@@ -437,6 +560,85 @@ class TestRanker:
         ranked = rank(results, ["news"])
         assert ranked[0]["title"] == "Today News"
         assert ranked[1]["title"] == "Old News"
+
+    def test_future_date_penalized(self):
+        """Future-dated articles must lose to today's dated articles.
+
+        Regression: _score_recency only checked age <= cutoff and returned
+        the cutoff bonus, so a 1-year-future date (likely a publishing typo
+        or scheduled-post artifact) got +30. Future dates now get -25.
+        """
+        today = datetime.now()
+        results = [
+            {
+                "title": "Future article",
+                "url": "https://example.com/future",
+                "content": "breach",
+                "published_date": (today + timedelta(days=30)).strftime("%Y-%m-%d"),
+            },
+            {
+                "title": "Today article",
+                "url": "https://example.com/today",
+                "content": "breach",
+                "published_date": today.strftime("%Y-%m-%d"),
+            },
+        ]
+        ranked = rank(results, ["breach"])
+        assert ranked[0]["title"] == "Today article"
+
+    def test_unknown_loses_to_fresh_obscure(self):
+        """Unknown date with all advantages (credible domain, numbers,
+        long content, more keyword matches) still loses to a freshly-dated
+        article on an obscure domain.
+
+        Regression: the original Unknown penalty (-15) wasn't strong enough
+        to overcome credible-domain (+10) + numbers (+5) + long-content (+5).
+        Bumped to -25 so any known recent date beats any Unknown.
+        """
+        today = datetime.now()
+        results = [
+            {
+                "title": "150 Million Affected: Big Number Headline",
+                "url": "https://nytimes.com/x",
+                "content": "breach " * 200,
+                "published_date": "Unknown",
+            },
+            {
+                "title": "Tiny breach",
+                "url": "https://random-blog.example.com/y",
+                "content": "breach",
+                "published_date": today.strftime("%Y-%m-%d"),
+            },
+        ]
+        ranked = rank(results, ["breach"])
+        assert ranked[0]["url"] == "https://random-blog.example.com/y"
+
+    def test_unknown_date_sinks_below_dated(self):
+        """Unknown-date articles must rank below any article with a known date.
+
+        Regression: an 8-year-old Under Armour breach article ('150 Million
+        Affected') had Unknown date but a punchy headline with numbers, and
+        beat a real recent breach article with a date.
+        """
+        results = [
+            {
+                "title": "150 Million Affected in Under Armour Breach",
+                "url": "https://example.com/old",
+                "content": "breach affected many users " * 50,
+                "published_date": "Unknown",
+            },
+            {
+                "title": "Under Armour breach",
+                "url": "https://example.com/recent",
+                "content": "breach news",
+                "published_date": _30_DAYS_AGO,
+            },
+        ]
+        ranked = rank(results, ["breach"])
+        # The recent dated article wins despite the older one having a
+        # longer content body, more keywords, and numbers in the headline.
+        assert ranked[0]["url"] == "https://example.com/recent"
+        assert ranked[1]["url"] == "https://example.com/old"
 
     def test_credible_domain_bonus(self):
         """Credible domains rank higher."""
