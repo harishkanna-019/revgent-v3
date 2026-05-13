@@ -448,6 +448,13 @@ class TestRunContext:
                 "cost_attribution": 0.001,
             }
         )
+        # Populate topic state so the debug block has something to expose.
+        ctx.topic = TopicState(
+            original="layoffs",
+            simplified="layoffs",
+            keywords=["layoff", "workforce", "fired"],
+            queries=['"meta" layoffs', '"meta" layoffs news 2026'],
+        )
         resp = ctx.build_response("layoffs")
         assert resp["company"] == "meta.com"
         assert "events" in resp
@@ -459,6 +466,29 @@ class TestRunContext:
         assert "budget" in resp
         assert resp["cost"]["budget_exhausted"] is False
         assert resp["budget"]["requested"] == 0.01
+        # Debug surface: the queries actually run + topic shape.
+        assert "debug" in resp
+        assert resp["debug"]["queries_used"] == [
+            '"meta" layoffs',
+            '"meta" layoffs news 2026',
+        ]
+        assert resp["debug"]["topic_simplified"] == "layoffs"
+        assert "layoff" in resp["debug"]["topic_keywords"]
+
+    def test_build_response_without_topic(self):
+        """build_response should not crash when topic state was never set."""
+        policy = ResearchDepthPolicy.from_request("cheap")
+        ctx = RunContext(
+            policy=policy,
+            company="meta.com",
+            topics=["layoffs"],
+            date_min=0,
+            date_max=90,
+        )
+        resp = ctx.build_response("layoffs")
+        assert resp["debug"]["queries_used"] == []
+        assert resp["debug"]["topic_simplified"] == ""
+        assert resp["debug"]["topic_keywords"] == []
 
     def test_topic_state(self):
         ts = TopicState(original="recent layoffs at meta")

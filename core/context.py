@@ -98,7 +98,8 @@ class RunContext:
         """Build a partial or full response dict matching the v2 shape.
 
         Returns dict with:
-            company, events, answers, signals, usage, topic_results, cost, budget
+            company, events, answers, signals, usage, topic_results, cost,
+            budget, debug
         """
         from answer_builder import build_answers
 
@@ -107,6 +108,16 @@ class RunContext:
             "topic_found": len(self.events) > 0,
             "topic_count": len(self.events),
             "topic_name": topic_name,
+        }
+
+        # Debug surface so reviewers can audit how the LLM is shaping
+        # the search. Per the team review (May 2026), we want to be able
+        # to compare LLM-generated query strings against hand-written
+        # ones run-over-run and check for drift.
+        debug = {
+            "queries_used": list(self.topic.queries) if self.topic else [],
+            "topic_simplified": self.topic.simplified if self.topic else "",
+            "topic_keywords": list(self.topic.keywords) if self.topic else [],
         }
 
         return {
@@ -124,4 +135,5 @@ class RunContext:
                 ),
                 "exhausted": self.cost.is_exhausted,
             },
+            "debug": debug,
         }

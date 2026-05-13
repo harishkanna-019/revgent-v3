@@ -465,8 +465,13 @@ async def research_clay(
     # response - mirror that here so primary_* fields stay consistent with
     # answers[0] (otherwise Clay sees an analysis piece as 'primary' while
     # the actual confirmation in answers points to a novel_fact).
+    # Log the actual queries the agent ran so we can audit LLM-generated
+    # query strings run-over-run from the production logs without needing
+    # to replay the request.
+    debug = full.get("debug", {}) or {}
     logger.info(
-        "clay response rid=%s elapsed_ms=%d events=%d signals=%d cost=%.6f tokens=%d trace=%s",
+        "clay response rid=%s elapsed_ms=%d events=%d signals=%d cost=%.6f "
+        "tokens=%d trace=%s queries=%s",
         request_id,
         elapsed_ms,
         len(events),
@@ -474,6 +479,7 @@ async def research_clay(
         full.get("cost", {}).get("total_cost", 0.0),
         full.get("usage", {}).get("total_tokens", 0),
         stage_trace,
+        debug.get("queries_used", []),
     )
     primary_answer = answers[0] if answers else {}
     # Use the top valid_source from answers[0] when present - this is the
@@ -516,6 +522,12 @@ async def research_clay(
         "request_id": request_id,
         "elapsed_ms": elapsed_ms,
         "stage_trace": stage_trace,
+        # Query audit trail. Lets reviewers compare LLM-generated
+        # queries against hand-written queries run-over-run and catch
+        # LLM drift (per team review, May 2026).
+        "queries_used": debug.get("queries_used", []),
+        "topic_simplified": debug.get("topic_simplified", ""),
+        "topic_keywords": debug.get("topic_keywords", []),
         # Full payload still available if Clay wants to drill into arrays
         "events": events,
         "signals": signals,

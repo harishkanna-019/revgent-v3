@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Query audit trail in /research/clay responses.** Surfaces the
+  actual LLM-generated queries, the simplified topic, and the topic
+  keywords as top-level response fields (`queries_used`, `topic_simplified`,
+  `topic_keywords`) so reviewers can audit query drift run-over-run
+  without replaying requests. Also logged in the production log line
+  so the audit works from Railway logs alone. Per team review
+  (May 2026): we want to verify LLM-generated query stability and
+  compare against hand-written reference queries before committing
+  to LLM-driven query generation long-term.
+- `docs/MEETING-NOTES-2026-05-13.md` documenting decisions, action
+  items, and the planned state-comparison pivot.
 - **SearXNG-syntax-aware query generation.** Rewrote
   `tools/queries.py:_QUERY_PROMPT` to teach the LLM about phrase quotes,
   Boolean OR clusters for synonym-rich topics, and the three-angle
