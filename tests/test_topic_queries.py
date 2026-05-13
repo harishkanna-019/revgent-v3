@@ -12,7 +12,13 @@ from core.context import RunContext, TopicState
 from core.depth import ResearchDepthPolicy
 from core.types import ToolResult
 from tools.topic import _parse_keyword_list, analyze
-from tools.queries import _parse_query_list, generate
+from tools.queries import (
+    _brand_phrase_candidates,
+    _dedupe_preserving_order,
+    _enforce_phrase_quoting,
+    _parse_query_list,
+    generate,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -152,6 +158,148 @@ class TestParseQueryList:
         text = '["Meta Layoffs", "meta layoffs", "META EARNINGS"]'
         # First occurrence preserved, duplicates (case-insensitive) skipped
         assert _parse_query_list(text) == ["Meta Layoffs", "META EARNINGS"]
+
+
+class TestBrandPhraseCandidates:
+    """Detecting which brand names need phrase-quoting.
+
+    Single-token brands ('meta', 'twitch') don't benefit from quoting.
+    Multi-token brands ('under armour', 'best western') MUST be quoted
+    or the engines match each word independently, dropping precision
+    by ~4x in our measurements.
+    """
+
+    def test_domain_with_tld(self):
+        """Common TLDs stripped, then quoting decided on the remainder."""
+        assert _brand_phrase_candidates("meta.com") == []
+        assert _brand_phrase_candidates("underarmour.com") == []
+        # .tv isn't in the strip list; twitch.tv stays as one token (no space).
+        assert _brand_phrase_candidates("twitch.tv") == []
+
+    def test_multi_word_brand(self):
+        assert _brand_phrase_candidates("under armour") == ["under armour"]
+        assert _brand_phrase_candidates("best western") == ["best western"]
+        assert _brand_phrase_candidates("general motors") == ["general motors"]
+
+    def test_case_normalized(self):
+        assert _brand_phrase_candidates("Under Armour") == ["under armour"]
+        assert _brand_phrase_candidates("WELLS FARGO") == ["wells fargo"]
+
+    def test_empty(self):
+        assert _brand_phrase_candidates("") == []
+        assert _brand_phrase_candidates("   ") == []
+
+    def test_known_tlds_stripped(self):
+        for suffix in (".com", ".io", ".co", ".net", ".org", ".ai", ".app"):
+            assert _brand_phrase_candidates(f"meta{suffix}") == []
+            assert _brand_phrase_candidates(f"under armour{suffix}") == ["under armour"]
+
+
+class TestEnforcePhraseQuoting:
+    """Deterministic safety net for the LLM's phrase-quoting compliance.
+
+    Even with the operator explicitly requested in the prompt, smaller
+    models sometimes return queries like 'under armour breach' (unquoted).
+    The post-processor wraps every unquoted multi-word brand mention so
+    the operator guarantee is independent of model behaviour.
+    """
+
+    def test_unquoted_brand_gets_quoted(self):
+        result = _enforce_phrase_quoting("under armour breach", ["under armour"])
+        assert result == '"under armour" breach'
+
+    def test_already_quoted_brand_unchanged(self):
+        """Don't over-quote when LLM already produced the right output."""
+        result = _enforce_phrase_quoting('"under armour" data breach', ["under armour"])
+        assert result == '"under armour" data breach'
+
+    def test_mixed_quoted_and_unquoted_brand_mentions(self):
+        """A query like '"under armour" vs under armour' should end up
+        with BOTH mentions quoted (the unquoted one gets wrapped)."""
+        result = _enforce_phrase_quoting(
+            '"under armour" breach OR under armour hack', ["under armour"]
+        )
+        # First mention preserved; second mention wrapped.
+        assert '"under armour" breach OR "under armour" hack' == result
+
+    def test_case_insensitive_match(self):
+        """Case-insensitive match. The wrapped output uses the canonical
+        (lowercase) form because search engines are case-insensitive and
+        the canonical form keeps cache keys consistent."""
+        result = _enforce_phrase_quoting("Under Armour breach", ["under armour"])
+        assert result == '"under armour" breach'
+        # Also handle mixed UPPER and lower in the same query.
+        result = _enforce_phrase_quoting(
+            "UNDER ARMOUR and under armour", ["under armour"]
+        )
+        assert result == '"under armour" and "under armour"'
+
+    def test_single_word_brand_no_op(self):
+        """Single-token brands aren't in the candidate list, so the
+        post-processor is a no-op for them."""
+        result = _enforce_phrase_quoting("meta layoffs", [])
+        assert result == "meta layoffs"
+
+    def test_partial_word_not_wrapped(self):
+        """'armour' inside 'armoured' must NOT trigger the wrap.
+
+        Regression: if the regex was naive (no word boundary check) it
+        would corrupt 'armoured' into 'arm\"our\"ed' or similar.
+        """
+        result = _enforce_phrase_quoting("armoured vehicle launch", ["under armour"])
+        assert result == "armoured vehicle launch"
+
+    def test_no_brand_candidates(self):
+        """Empty candidate list returns query unchanged."""
+        assert _enforce_phrase_quoting("meta layoffs", []) == "meta layoffs"
+
+    def test_empty_query(self):
+        assert _enforce_phrase_quoting("", ["under armour"]) == ""
+
+    def test_multiple_brand_candidates(self):
+        """Both candidates wrapped independently."""
+        result = _enforce_phrase_quoting(
+            "under armour vs best western shoe deal",
+            ["under armour", "best western"],
+        )
+        assert result == '"under armour" vs "best western" shoe deal'
+
+    def test_brand_at_start_and_end(self):
+        """Boundary positions in the string are handled."""
+        assert (
+            _enforce_phrase_quoting("under armour", ["under armour"])
+            == '"under armour"'
+        )
+        assert (
+            _enforce_phrase_quoting("breach at under armour", ["under armour"])
+            == 'breach at "under armour"'
+        )
+
+    def test_brand_inside_boolean_or_clause(self):
+        """Brand mentions inside an OR clause also get wrapped if unquoted."""
+        result = _enforce_phrase_quoting(
+            'under armour (breach OR hack OR "data leak")',
+            ["under armour"],
+        )
+        assert result == '"under armour" (breach OR hack OR "data leak")'
+
+
+class TestDedupePreservingOrder:
+    def test_preserves_order(self):
+        assert _dedupe_preserving_order(["a", "b", "c"]) == ["a", "b", "c"]
+
+    def test_drops_case_insensitive_duplicates(self):
+        assert _dedupe_preserving_order(
+            ['"meta" layoffs', '"Meta" Layoffs', '"meta" earnings']
+        ) == ['"meta" layoffs', '"meta" earnings']
+
+    def test_drops_whitespace_only_duplicates(self):
+        assert _dedupe_preserving_order(['"meta" layoffs', '  "meta" layoffs  ']) == [
+            '"meta" layoffs'
+        ]
+
+    def test_drops_empties(self):
+        assert _dedupe_preserving_order(["", "a", "", "b"]) == ["a", "b"]
 
 
 # ── analyze() real API tests ──

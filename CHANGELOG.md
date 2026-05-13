@@ -7,11 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **SearXNG-syntax-aware query generation.** Rewrote
+  `tools/queries.py:_QUERY_PROMPT` to teach the LLM about phrase quotes,
+  Boolean OR clusters for synonym-rich topics, and the three-angle
+  pattern (direct / action / temporal) borrowed from the research-skill
+  multi-agent approach. Adds `_enforce_phrase_quoting()` deterministic
+  post-processor that wraps every multi-word brand mention in quotes
+  regardless of LLM compliance — the single biggest precision lever
+  in our tests (4-5× lift on on-topic results for multi-word brands
+  like *under armour*, *best western*, *best buy*).
+- **Looser, root-first topic keywords.** Rewrote `tools/topic.py:_KEYWORD_PROMPT`
+  to require single-word topic roots alongside phrases. Old keywords for
+  `strategic partnerships` started with `"strategic partnership"` which
+  miss articles titled *"X with Empire Partnership"*. New keywords start
+  with the bare `partnership`. Added explicit examples for layoffs,
+  partnerships, breaches, launches, funding, executive changes.
+- `docs/SEARCH-SYNTAX.md` — documents which SearXNG operators pass
+  through to underlying engines (Bing News, DuckDuckGo, Qwant, Brave),
+  with measurements, plus the three-angle query strategy and the
+  root-first keyword strategy.
 - `docs/TEAM-BRIEF.md` — team-facing brief covering architecture, cost
   projection, deployment plan, comparison with the Signal Engine
   prototype, and recommended next steps.
 - `README.md` — top-level project overview, quick start, API reference,
   configuration, layout, and links to all docs.
+
+### Changed
+- Query generation cache key now includes the model name. Different
+  models produce different operator patterns and we don't want one
+  model's output to be served for another.
 
 ### Removed
 - `PRD.md` — superseded by `docs/ARCHITECTURE.md`, `docs/MODULES.md`,

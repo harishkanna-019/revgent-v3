@@ -21,24 +21,37 @@ Examples:
 - "earnings report Q1 2026" → earnings
 """
 
-_KEYWORD_PROMPT = """List 8-15 short, GENERIC keywords or phrases that journalists commonly use
+_KEYWORD_PROMPT = """List 10-18 short, GENERIC keywords that journalists commonly use
 when writing about the topic below. These keywords are used to check whether
-an article is actually about this topic.
+an article is actually about this topic - they're a coarse precision gate,
+not the final filter. Recall here is more important than precision because
+the LLM validation stage downstream rejects false matches.
 
 Topic: {topic}
 
 Rules:
-- Do NOT include the company name in any keyword. The keyword "layoffs" is good;
+- Do NOT include the company name in any keyword. "layoffs" is good;
   "acme corp layoffs" is bad.
+- INCLUDE the core single-word root of the topic on its own. If the topic
+  is "strategic partnerships", the list MUST include "partnership" as a
+  standalone keyword. Multi-word phrases like "strategic partnership" miss
+  articles that say "Empire Partnership" or "announced a partnership".
+  The single-word root catches both; phrases catch only exact matches.
 - Each keyword must be a literal phrase a news article would actually contain
   ("cut jobs", "axed", "workforce reduction"), not a query ("acme layoffs news").
 - Cover synonyms, related actions, and adjacent industry vocabulary.
+- Use 1-2 word keywords; the keyword matcher does prefix matching so
+  "layoff" hits "layoffs", "hack" hits "hacked" / "hacker" / "hacking".
 - Return ONLY a JSON array of lowercase strings.
 
-Examples:
-- Topic "layoffs" -> ["layoffs", "laid off", "job cuts", "cut jobs", "workforce reduction", "headcount reduction", "restructuring", "downsizing", "redundancies", "hiring freeze", "reduce staff", "axed jobs", "cost cutting", "rightsizing"]
-- Topic "earnings" -> ["earnings", "revenue", "profit", "loss", "quarterly results", "q1", "q2", "q3", "q4", "financial results", "ebitda", "guidance", "missed estimates", "beat estimates"]
-- Topic "funding" -> ["funding", "raised", "series a", "series b", "series c", "seed round", "valuation", "investors", "venture capital", "investment round"]
+Examples (note that each list has the single-word root + variations + synonyms):
+- Topic "layoffs" -> ["layoff", "laid off", "job cuts", "cut jobs", "workforce reduction", "headcount", "restructuring", "downsize", "redundancies", "hiring freeze", "reduce staff", "axed", "cost cutting", "rightsizing", "fire", "fired", "firings"]
+- Topic "earnings" -> ["earnings", "revenue", "profit", "loss", "quarterly results", "q1", "q2", "q3", "q4", "financial results", "ebitda", "guidance", "missed estimates", "beat estimates", "eps"]
+- Topic "strategic partnerships" -> ["partnership", "partnered", "alliance", "joint venture", "jv", "collaboration", "agreement", "deal", "teaming up", "joining forces", "co-develop", "mou", "memorandum", "strategic alliance", "distribution deal"]
+- Topic "new product launches" -> ["launch", "launched", "unveiled", "debut", "introduces", "rolled out", "rollout", "announcement", "release", "new product", "new feature", "beta", "now available", "reveal"]
+- Topic "data breaches" -> ["breach", "breached", "hack", "hacked", "leak", "leaked", "exposed", "compromised", "cyberattack", "ransomware", "phishing", "data leak", "data theft", "stolen data", "customer data", "records exposed", "security incident"]
+- Topic "funding" -> ["funding", "raised", "series a", "series b", "series c", "seed", "valuation", "investors", "venture capital", "investment", "round", "raise"]
+- Topic "executive changes" -> ["ceo", "cfo", "cto", "chief", "president", "appointed", "steps down", "resigns", "departure", "hires", "named", "new ceo", "executive", "leadership change"]
 """
 
 
