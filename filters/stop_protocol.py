@@ -112,6 +112,7 @@ def apply_stop_protocol(
     max_days: int,
     topic_keywords: list[str],
     strict_date: bool = False,
+    skip_company_check: bool = False,
 ) -> list[dict]:
     """Apply the four-stage stop protocol to filter search results.
 
@@ -124,7 +125,9 @@ def apply_stop_protocol(
     3. Topic relevance — at least one keyword from topic_keywords must appear
        in title or content. Empty keywords → all rejected.
     4. Company relevance — check company_names against title and content.
-       Skipped when company_names is None.
+       Skipped when company_names is None OR skip_company_check=True.
+       Set skip_company_check=True when the search query already included
+       the company name, so the results are inherently company-relevant.
 
     Args:
         results: List of search result dicts.
@@ -136,6 +139,7 @@ def apply_stop_protocol(
         strict_date: If True, drop candidates with Unknown publication dates
             instead of passing them through. Defaults to False for backward
             compatibility.
+        skip_company_check: If True, skip stage 4 (company relevance).
 
     Returns:
         Filtered list of results passing all stages.
@@ -187,7 +191,7 @@ def apply_stop_protocol(
             continue
 
         # ── Stage 4: Company relevance ──
-        if company_names is not None:
+        if not skip_company_check and company_names is not None:
             if not _matches_keywords(combined_text, company_names):
                 continue
 

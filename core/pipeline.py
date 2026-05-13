@@ -377,6 +377,7 @@ async def run(
                 max_days=ctx.date_max,
                 topic_keywords=ctx.topic.keywords,
                 strict_date=ctx.strict_date,
+                skip_company_check=True,
             )
             _emit(StageEnd(stage="stop_protocol", out=len(filtered)))
 

@@ -517,6 +517,39 @@ class TestStopProtocol:
         assert len(filtered) == 1
         assert filtered[0]["title"] == "Meta Layoffs"
 
+    def test_skip_company_check(self):
+        """skip_company_check=True passes results even when company name is absent."""
+        results = [
+            {
+                "title": "Major data breach at cloud provider",
+                "url": "https://example.com/news",
+                "content": "A major data breach affected millions of customer records.",
+                "published_date": _30_DAYS_AGO,
+            }
+        ]
+        # Without skip: company "datadog" not in snippet → rejected
+        filtered_no_skip = apply_stop_protocol(
+            results,
+            topic="data breach",
+            company_names=["datadog"],
+            min_days=0,
+            max_days=365,
+            topic_keywords=["data breach", "breach", "hacked"],
+        )
+        assert len(filtered_no_skip) == 0
+
+        # With skip: company check skipped → passes (topic keywords match)
+        filtered_skip = apply_stop_protocol(
+            results,
+            topic="data breach",
+            company_names=["datadog"],
+            min_days=0,
+            max_days=365,
+            topic_keywords=["data breach", "breach", "hacked"],
+            skip_company_check=True,
+        )
+        assert len(filtered_skip) == 1
+
 
 # ───────────────────────────────
 # ranker.py

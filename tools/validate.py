@@ -4,30 +4,33 @@ from core.context import RunContext
 from core.types import ToolResult
 from providers import llm
 
-_RELEVANCE_PROMPT = """You are deciding whether a news article reports on {company} directly experiencing the topic "{topic}".
+_RELEVANCE_PROMPT = """You are deciding whether a news article reports on {company} itself doing or experiencing the topic "{topic}".
 
 Company: {company}
 Topic: {topic}
 Article title: {title}
 Article content: {content}
 
-A YES answer requires BOTH conditions:
-1. {company} is the primary subject of the article, AND
+A YES answer requires:
+1. {company} is a subject of the article (not just a passing mention), AND
 2. The article reports on {company} itself doing or experiencing "{topic}"
-   (e.g. {company}'s own layoffs, {company}'s own earnings, {company}'s own product launch).
+   (e.g. {company}'s own layoffs, {company}'s own funding round, {company}'s own breach).
 
-A NO answer applies in any of these cases:
+Multi-company articles are YES if {company} is one of the companies experiencing "{topic}":
+  Example: "Top 10 Tech Exec Moves This Week — Stripe hires new CTO, Google VP leaves"
+  -> answer YES when researching stripe.com C-suite executive changes.
+
+A NO answer applies when:
 - The article is about a DIFFERENT company doing "{topic}" and only mentions {company} in passing
   (example: "Meta announces 8,000 layoffs; Anthropic also held AI talks with the White House"
-   -> answer NO when researching anthropic.com layoffs, because the layoffs are Meta's, not Anthropic's)
-- {company} appears in a multi-company news digest where only some other company is doing "{topic}"
+   -> answer NO when researching anthropic.com layoffs)
 - {company} is cited as a researcher, study author, competitor, or comparison
-- The article is general industry commentary that references {company}
-- The article is about "{topic}" in general (e.g. "AI layoffs trend in 2026") and only namedrops {company}
+- The article is general industry commentary that references {company} without
+  reporting on a specific event at {company}
 
 Answer with exactly one word:
-- YES: {company} is the primary subject AND the article is about {company}'s own "{topic}"
-- NO: either {company} is not the primary subject, OR the topic event belongs to another company
+- YES: The article reports on {company}'s own "{topic}"
+- NO: It does not (either different company or only a passing mention of {company})
 - UNCERTAIN: you cannot tell
 
 Your answer must be exactly YES, NO, or UNCERTAIN."""
@@ -57,8 +60,8 @@ Article title: {title}
 Article content: {content}
 
 Is this article reporting verifiable facts or expressing opinions/speculation? Answer with exactly one word:
-- HARD_FACT: The article reports concrete, verifiable facts (e.g., announced layoffs, published earnings, confirmed product launch)
-- OPINION: The article contains analysis, prediction, speculation, or opinion (e.g., "analysts believe", "might", "could", "rumored")
+- HARD_FACT: The article reports concrete, verifiable events (e.g., announced layoffs, confirmed funding, published breach disclosure). If the article reports a concrete event AND also includes analyst commentary or opinion, it is still HARD_FACT — the presence of commentary does not negate the factual event being reported.
+- OPINION: The article is PURELY analysis, prediction, speculation, or opinion with NO concrete event being reported (e.g., "analysts believe layoffs may come", "might happen", "could potentially", "rumored to be considering").
 
 Your answer must be exactly HARD_FACT or OPINION."""
 
