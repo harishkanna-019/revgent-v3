@@ -29,6 +29,7 @@ class RunContext:
     __slots__ = (
         "policy",
         "company",
+        "company_names",
         "topics",
         "date_min",
         "date_max",
@@ -51,6 +52,7 @@ class RunContext:
     ):
         self.policy = policy
         self.company = company
+        self.company_names: list[str] = []
         self.topics = topics
         self.date_min = date_min
         self.date_max = date_max

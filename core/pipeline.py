@@ -241,11 +241,12 @@ async def run(
                 )
             )
 
-        # ── Resolve company names once (used by stop protocol) ──
+        # ── Resolve company names once (used by stop protocol + validation) ──
         company_names, _ = await company.get_names(
             ctx.company,
             model=ctx.policy.model_for_task("keyword_generation"),
         )
+        ctx.company_names = company_names
 
         # ── Process each topic ──
         for topic_name in ctx.topics:

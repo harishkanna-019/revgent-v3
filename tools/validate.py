@@ -113,7 +113,17 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
         ToolResult with output={"result": dict|None, "status": str, "original": dict}
         Status is one of: "valid", "opinion", "not_about_company"
     """
-    company = ctx.company.strip().lower() if ctx.company else ""
+    # Use the best human-readable company name for the validation prompt.
+    # ctx.company is the raw domain (e.g., "meta.com") but news articles
+    # refer to "Meta" or "Meta Platforms".  The LLM rejects articles when
+    # asked "is this about meta.com?" because the text says "Meta".
+    # Prefer the longest multi-word name (e.g., "meta platforms") for
+    # highest match rate, fall back to first resolved name, then domain.
+    if ctx.company_names:
+        spaced = [n for n in ctx.company_names if " " in n]
+        company = spaced[0] if spaced else ctx.company_names[0]
+    else:
+        company = ctx.company.strip().lower() if ctx.company else ""
     # Use the simplified topic when present; fall back to the original.
     topic_for_prompt = ""
     if ctx.topic is not None:
