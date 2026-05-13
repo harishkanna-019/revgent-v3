@@ -16,8 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (May 2026): we want to verify LLM-generated query stability and
   compare against hand-written reference queries before committing
   to LLM-driven query generation long-term.
-- `docs/MEETING-NOTES-2026-05-13.md` documenting decisions, action
-  items, and the planned state-comparison pivot.
 - **SearXNG-syntax-aware query generation.** Rewrote
   `tools/queries.py:_QUERY_PROMPT` to teach the LLM about phrase quotes,
   Boolean OR clusters for synonym-rich topics, and the three-angle

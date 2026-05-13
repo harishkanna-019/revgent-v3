@@ -19,3 +19,7 @@ venv/
 # IDE
 .idea/
 .vscode/
+
+# Meeting notes — internal, do not commit
+docs/MEETING-NOTES-*.md
+docs/meeting-notes/
