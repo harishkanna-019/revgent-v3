@@ -1,0 +1,151 @@
+company_domain,company_name,tier,industry,topic
+meta.com,Meta Platforms,enterprise,Technology,funding round
+meta.com,Meta Platforms,enterprise,Technology,C-suite executive changes
+meta.com,Meta Platforms,enterprise,Technology,data breach
+salesforce.com,Salesforce,enterprise,SaaS,funding round
+salesforce.com,Salesforce,enterprise,SaaS,C-suite executive changes
+salesforce.com,Salesforce,enterprise,SaaS,data breach
+stripe.com,Stripe,growth,Fintech,funding round
+stripe.com,Stripe,growth,Fintech,C-suite executive changes
+stripe.com,Stripe,growth,Fintech,data breach
+snowflake.com,Snowflake,enterprise,Data/Cloud,funding round
+snowflake.com,Snowflake,enterprise,Data/Cloud,C-suite executive changes
+snowflake.com,Snowflake,enterprise,Data/Cloud,data breach
+datadog.com,Datadog,enterprise,Observability,funding round
+datadog.com,Datadog,enterprise,Observability,C-suite executive changes
+datadog.com,Datadog,enterprise,Observability,data breach
+crowdstrike.com,CrowdStrike,enterprise,Cybersecurity,funding round
+crowdstrike.com,CrowdStrike,enterprise,Cybersecurity,C-suite executive changes
+crowdstrike.com,CrowdStrike,enterprise,Cybersecurity,data breach
+paloaltonetworks.com,Palo Alto Networks,enterprise,Cybersecurity,funding round
+paloaltonetworks.com,Palo Alto Networks,enterprise,Cybersecurity,C-suite executive changes
+paloaltonetworks.com,Palo Alto Networks,enterprise,Cybersecurity,data breach
+zscaler.com,Zscaler,enterprise,Cybersecurity,funding round
+zscaler.com,Zscaler,enterprise,Cybersecurity,C-suite executive changes
+zscaler.com,Zscaler,enterprise,Cybersecurity,data breach
+hubspot.com,HubSpot,enterprise,SaaS/CRM,funding round
+hubspot.com,HubSpot,enterprise,SaaS/CRM,C-suite executive changes
+hubspot.com,HubSpot,enterprise,SaaS/CRM,data breach
+twilio.com,Twilio,enterprise,Communications,funding round
+twilio.com,Twilio,enterprise,Communications,C-suite executive changes
+twilio.com,Twilio,enterprise,Communications,data breach
+okta.com,Okta,enterprise,Identity,funding round
+okta.com,Okta,enterprise,Identity,C-suite executive changes
+okta.com,Okta,enterprise,Identity,data breach
+mongodb.com,MongoDB,enterprise,Database,funding round
+mongodb.com,MongoDB,enterprise,Database,C-suite executive changes
+mongodb.com,MongoDB,enterprise,Database,data breach
+cloudflare.com,Cloudflare,enterprise,Infrastructure,funding round
+cloudflare.com,Cloudflare,enterprise,Infrastructure,C-suite executive changes
+cloudflare.com,Cloudflare,enterprise,Infrastructure,data breach
+figma.com,Figma,growth,Design,funding round
+figma.com,Figma,growth,Design,C-suite executive changes
+figma.com,Figma,growth,Design,data breach
+notion.so,Notion,growth,Productivity,funding round
+notion.so,Notion,growth,Productivity,C-suite executive changes
+notion.so,Notion,growth,Productivity,data breach
+airtable.com,Airtable,growth,Productivity,funding round
+airtable.com,Airtable,growth,Productivity,C-suite executive changes
+airtable.com,Airtable,growth,Productivity,data breach
+brex.com,Brex,growth,Fintech,funding round
+brex.com,Brex,growth,Fintech,C-suite executive changes
+brex.com,Brex,growth,Fintech,data breach
+ramp.com,Ramp,growth,Fintech,funding round
+ramp.com,Ramp,growth,Fintech,C-suite executive changes
+ramp.com,Ramp,growth,Fintech,data breach
+rippling.com,Rippling,growth,HR Tech,funding round
+rippling.com,Rippling,growth,HR Tech,C-suite executive changes
+rippling.com,Rippling,growth,HR Tech,data breach
+gusto.com,Gusto,mid-market,HR Tech,funding round
+gusto.com,Gusto,mid-market,HR Tech,C-suite executive changes
+gusto.com,Gusto,mid-market,HR Tech,data breach
+deel.com,Deel,growth,HR Tech,funding round
+deel.com,Deel,growth,HR Tech,C-suite executive changes
+deel.com,Deel,growth,HR Tech,data breach
+lattice.com,Lattice,mid-market,HR Tech,funding round
+lattice.com,Lattice,mid-market,HR Tech,C-suite executive changes
+lattice.com,Lattice,mid-market,HR Tech,data breach
+gong.io,Gong,growth,Revenue Intelligence,funding round
+gong.io,Gong,growth,Revenue Intelligence,C-suite executive changes
+gong.io,Gong,growth,Revenue Intelligence,data breach
+outreach.io,Outreach,growth,Sales Engagement,funding round
+outreach.io,Outreach,growth,Sales Engagement,C-suite executive changes
+outreach.io,Outreach,growth,Sales Engagement,data breach
+6sense.com,6sense,growth,ABM/Intent,funding round
+6sense.com,6sense,growth,ABM/Intent,C-suite executive changes
+6sense.com,6sense,growth,ABM/Intent,data breach
+demandbase.com,Demandbase,mid-market,ABM/Intent,funding round
+demandbase.com,Demandbase,mid-market,ABM/Intent,C-suite executive changes
+demandbase.com,Demandbase,mid-market,ABM/Intent,data breach
+zoominfo.com,ZoomInfo,enterprise,Sales Intelligence,funding round
+zoominfo.com,ZoomInfo,enterprise,Sales Intelligence,C-suite executive changes
+zoominfo.com,ZoomInfo,enterprise,Sales Intelligence,data breach
+apollo.io,Apollo,growth,Sales Intelligence,funding round
+apollo.io,Apollo,growth,Sales Intelligence,C-suite executive changes
+apollo.io,Apollo,growth,Sales Intelligence,data breach
+clay.com,Clay,growth,GTM/Data,funding round
+clay.com,Clay,growth,GTM/Data,C-suite executive changes
+clay.com,Clay,growth,GTM/Data,data breach
+attio.com,Attio,growth,CRM,funding round
+attio.com,Attio,growth,CRM,C-suite executive changes
+attio.com,Attio,growth,CRM,data breach
+linear.app,Linear,growth,Project Management,funding round
+linear.app,Linear,growth,Project Management,C-suite executive changes
+linear.app,Linear,growth,Project Management,data breach
+vercel.com,Vercel,growth,Developer Platform,funding round
+vercel.com,Vercel,growth,Developer Platform,C-suite executive changes
+vercel.com,Vercel,growth,Developer Platform,data breach
+supabase.com,Supabase,growth,Developer Platform,funding round
+supabase.com,Supabase,growth,Developer Platform,C-suite executive changes
+supabase.com,Supabase,growth,Developer Platform,data breach
+planetscale.com,PlanetScale,mid-market,Database,funding round
+planetscale.com,PlanetScale,mid-market,Database,C-suite executive changes
+planetscale.com,PlanetScale,mid-market,Database,data breach
+neon.tech,Neon,growth,Database,funding round
+neon.tech,Neon,growth,Database,C-suite executive changes
+neon.tech,Neon,growth,Database,data breach
+databricks.com,Databricks,enterprise,Data/AI,funding round
+databricks.com,Databricks,enterprise,Data/AI,C-suite executive changes
+databricks.com,Databricks,enterprise,Data/AI,data breach
+anthropic.com,Anthropic,growth,AI,funding round
+anthropic.com,Anthropic,growth,AI,C-suite executive changes
+anthropic.com,Anthropic,growth,AI,data breach
+cohere.com,Cohere,growth,AI,funding round
+cohere.com,Cohere,growth,AI,C-suite executive changes
+cohere.com,Cohere,growth,AI,data breach
+mistral.ai,Mistral AI,growth,AI,funding round
+mistral.ai,Mistral AI,growth,AI,C-suite executive changes
+mistral.ai,Mistral AI,growth,AI,data breach
+scale.com,Scale AI,growth,AI,funding round
+scale.com,Scale AI,growth,AI,C-suite executive changes
+scale.com,Scale AI,growth,AI,data breach
+anduril.com,Anduril,growth,Defense Tech,funding round
+anduril.com,Anduril,growth,Defense Tech,C-suite executive changes
+anduril.com,Anduril,growth,Defense Tech,data breach
+palantir.com,Palantir,enterprise,Data/Defense,funding round
+palantir.com,Palantir,enterprise,Data/Defense,C-suite executive changes
+palantir.com,Palantir,enterprise,Data/Defense,data breach
+uipath.com,UiPath,enterprise,Automation,funding round
+uipath.com,UiPath,enterprise,Automation,C-suite executive changes
+uipath.com,UiPath,enterprise,Automation,data breach
+celonis.com,Celonis,growth,Process Mining,funding round
+celonis.com,Celonis,growth,Process Mining,C-suite executive changes
+celonis.com,Celonis,growth,Process Mining,data breach
+samsara.com,Samsara,enterprise,IoT,funding round
+samsara.com,Samsara,enterprise,IoT,C-suite executive changes
+samsara.com,Samsara,enterprise,IoT,data breach
+toast.com,Toast,enterprise,Restaurant Tech,funding round
+toast.com,Toast,enterprise,Restaurant Tech,C-suite executive changes
+toast.com,Toast,enterprise,Restaurant Tech,data breach
+procore.com,Procore,enterprise,Construction Tech,funding round
+procore.com,Procore,enterprise,Construction Tech,C-suite executive changes
+procore.com,Procore,enterprise,Construction Tech,data breach
+coupang.com,Coupang,enterprise,E-commerce,funding round
+coupang.com,Coupang,enterprise,E-commerce,C-suite executive changes
+coupang.com,Coupang,enterprise,E-commerce,data breach
+canva.com,Canva,enterprise,Design,funding round
+canva.com,Canva,enterprise,Design,C-suite executive changes
+canva.com,Canva,enterprise,Design,data breach
+wiz.io,Wiz,growth,Cloud Security,funding round
+wiz.io,Wiz,growth,Cloud Security,C-suite executive changes
+wiz.io,Wiz,growth,Cloud Security,data breach
