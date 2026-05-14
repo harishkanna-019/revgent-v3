@@ -12,7 +12,7 @@ import trafilatura
 
 # ── Configuration ──
 
-SCRAPE_TIMEOUT = 10.0  # seconds per page
+SCRAPE_TIMEOUT = 6.0  # seconds per page (reduced from 10s; most pages respond in 1-3s)
 MAX_REDIRECTS = 5
 MIN_CONTENT_LENGTH = 80
 

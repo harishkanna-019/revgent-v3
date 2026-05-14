@@ -1,73 +1,62 @@
-"""Formatting tool: summary + classification via concurrent LLM calls."""
-
-import asyncio
+"""Formatting tool: combined summary + classification in one LLM call."""
 
 from core.context import RunContext
 from core.types import ToolResult
 from formatting import format_event
 from providers import llm
 
-_SUMMARY_PROMPT = """Summarize the following article in 2-3 sentences. Focus on the key facts and main point.
+_FORMAT_PROMPT = """Summarize this article in 2-3 sentences focusing on the key facts, then classify it.
 
 Title: {title}
 Content: {content}
 
-Summary:"""
+Respond in EXACTLY this format (two lines):
+SUMMARY: <your 2-3 sentence summary>
+TYPE: <one of: novel_fact, report, analysis, historical>
 
-_CLASSIFICATION_PROMPT = """Classify the following article into one content type:
-
-Title: {title}
-Content: {content}
-
-Content types:
+Type definitions:
 - novel_fact: A new, previously unreported factual development
 - report: A factual summary of recent events or data
 - analysis: Interpretation, commentary, or analytical breakdown
-- historical: Background context or historical overview
-
-Answer with exactly one word: novel_fact, report, analysis, or historical."""
+- historical: Background context or historical overview"""
 
 _VALID_TYPES = {"novel_fact", "report", "analysis", "historical"}
 
 
-def _parse_classification(text: str) -> str:
-    """Parse classification response into a valid content type."""
-    text = text.strip().lower()
-    for t in _VALID_TYPES:
-        if t in text:
-            return t
-    return "analysis"
+def _parse_format_response(text: str) -> tuple[str, str]:
+    """Parse combined summary+classification response.
 
+    Returns (summary, content_type).
+    """
+    summary = ""
+    content_type = "analysis"
 
-def _merge_usage(u1: dict, u2: dict) -> dict:
-    """Merge two usage dicts."""
-    return {
-        "input_tokens": u1.get("input_tokens", 0) + u2.get("input_tokens", 0),
-        "output_tokens": u1.get("output_tokens", 0) + u2.get("output_tokens", 0),
-        "total_tokens": u1.get("total_tokens", 0) + u2.get("total_tokens", 0),
-    }
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if line.upper().startswith("SUMMARY:"):
+            summary = line[len("SUMMARY:"):].strip()
+        elif line.upper().startswith("TYPE:"):
+            raw_type = line[len("TYPE:"):].strip().lower()
+            for t in _VALID_TYPES:
+                if t in raw_type:
+                    content_type = t
+                    break
 
+    # Fallback: if no SUMMARY: prefix found, use the whole text as summary
+    if not summary:
+        lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+        # Filter out the TYPE line
+        non_type = [l for l in lines if not l.upper().startswith("TYPE:")]
+        summary = " ".join(non_type)[:500]
 
-async def _summarize(model: str, title: str, content: str) -> tuple[str, dict]:
-    """Call LLM for article summary."""
-    prompt = _SUMMARY_PROMPT.format(title=title, content=content[:4000])
-    text, usage = await llm.call(model=model, max_tokens=256, prompt=prompt)
-    return text.strip(), usage
-
-
-async def _classify(model: str, title: str, content: str) -> tuple[str, dict]:
-    """Call LLM for content type classification."""
-    prompt = _CLASSIFICATION_PROMPT.format(title=title, content=content[:2000])
-    text, usage = await llm.call(model=model, max_tokens=32, prompt=prompt)
-    return _parse_classification(text), usage
+    return summary, content_type
 
 
 async def format_one(ctx: RunContext, candidate: dict) -> ToolResult:
     """Format a candidate into an event dict.
 
-    Concurrently calls LLM for:
-    1. Summary of the article
-    2. Content type classification (novel_fact, report, analysis, historical)
+    Single LLM call that produces both a summary and content type
+    classification, halving the token cost vs two separate calls.
 
     Args:
         ctx: RunContext with policy
@@ -81,30 +70,21 @@ async def format_one(ctx: RunContext, candidate: dict) -> ToolResult:
     url = candidate.get("url", "")
     item_id = url or title[:50]
 
-    summary_model = ctx.policy.model_for_task("summarization")
-    classification_model = ctx.policy.model_for_task("classification")
+    model = ctx.policy.model_for_task("summarization")
 
-    # ── Concurrent LLM calls ──
-    summary_task = asyncio.create_task(_summarize(summary_model, title, content))
-    classification_task = asyncio.create_task(
-        _classify(classification_model, title, content)
-    )
+    prompt = _FORMAT_PROMPT.format(title=title, content=content[:4000])
+    text, usage = await llm.call(model=model, max_tokens=300, prompt=prompt)
 
-    summary, summary_usage = await summary_task
-    content_type, classification_usage = await classification_task
+    summary, content_type = _parse_format_response(text)
 
-    total_usage = _merge_usage(summary_usage, classification_usage)
-
-    # Build event dict. Stamp the current topic on the event so downstream
-    # answer_builder (which filters by event['topic']) can group correctly.
     event = format_event(candidate, summary=summary, content_type=content_type)
     event["topic"] = (
         ctx.topic.original
         if ctx.topic is not None and ctx.topic.original
         else (ctx.topics[-1] if ctx.topics else "")
     )
-    event["cost_attribution"] = 0.0  # Will be set by caller if needed
+    event["cost_attribution"] = 0.0
 
-    ctx.record(total_usage, item_id=item_id)
+    ctx.record(usage, item_id=item_id)
 
-    return ToolResult(output=event, usage=total_usage, item_id=item_id)
+    return ToolResult(output=event, usage=usage, item_id=item_id)

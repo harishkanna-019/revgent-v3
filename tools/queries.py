@@ -111,13 +111,18 @@ async def generate(ctx: RunContext) -> ToolResult:
     # Deterministic queries from trigger words (guaranteed to match event language).
     deterministic = _build_deterministic_queries(company, topic, trigger_words, current_year)
 
-    # Supplement with LLM-generated queries for diversity.
-    llm_queries, usage = await _fetch_llm_queries(
-        company, topic, n_queries, trigger_words, current_year, ctx
-    )
-
-    # Merge: deterministic first (highest signal), then LLM diversity.
-    all_queries = deterministic + llm_queries
+    # Skip LLM query generation when deterministic queries alone fill the budget.
+    # This saves a full LLM round-trip (~2s) and is safe because the trigger-word
+    # queries already cover the three search angles (direct, action-cluster, temporal).
+    if len(deterministic) >= n_queries:
+        all_queries = deterministic
+        usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    else:
+        # Supplement with LLM-generated queries for diversity.
+        llm_queries, usage = await _fetch_llm_queries(
+            company, topic, n_queries, trigger_words, current_year, ctx
+        )
+        all_queries = deterministic + llm_queries
 
     # Phrase-quote safety net + deduplicate.
     brand_tokens = _brand_phrase_candidates(company)
@@ -128,6 +133,25 @@ async def generate(ctx: RunContext) -> ToolResult:
 
     ctx.record(usage)
     return ToolResult(output=all_queries, usage=usage)
+
+
+# Common English words that happen to be company names. These brands
+# need a disambiguating sector term in search queries or Google returns
+# food recipes, gardening tips, and celebrity gossip instead of business news.
+_AMBIGUOUS_BRANDS: dict[str, str] = {
+    "toast": "restaurant technology",
+    "gusto": "payroll HR",
+    "notion": "productivity software",
+    "linear": "project management software",
+    "ramp": "fintech corporate card",
+    "brex": "fintech",
+    "deel": "HR payroll",
+    "lattice": "HR software",
+    "gong": "revenue intelligence",
+    "clay": "data enrichment",
+    "scale": "AI data platform",
+    "wiz": "cloud security",
+}
 
 
 def _build_deterministic_queries(
@@ -157,12 +181,20 @@ def _build_deterministic_queries(
     tw_terms = trigger_words.replace('"', "").split(" OR ")
     short_terms = " OR ".join(tw_terms[:4])
 
-    return [
+    queries = [
         f"{brand} {topic}",
         f"{brand} ({trigger_words})",
         f"{brand} {topic} {current_year}",
         f"{brand} ({short_terms})",
     ]
+
+    # For ambiguous brand names, add a disambiguated query with sector context.
+    # "toast" data breach -> '"toast" restaurant technology data breach'
+    sector = _AMBIGUOUS_BRANDS.get(name, "")
+    if sector:
+        queries.append(f"{brand} {sector} {topic}")
+
+    return queries
 
 
 async def _fetch_llm_queries(

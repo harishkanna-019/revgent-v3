@@ -241,50 +241,51 @@ async def run(
                 )
             )
 
-        # ── Resolve company names once (used by stop protocol + validation) ──
-        company_names, _ = await company.get_names(
-            ctx.company,
-            model=ctx.policy.model_for_task("keyword_generation"),
+        # ── Resolve company names + first topic in parallel ──
+        # company.get_names() is independent of topic analysis and query
+        # generation. For the first topic, run all three concurrently to
+        # save one LLM round-trip (~2-3s). Subsequent topics (if any)
+        # only need topic analysis + query generation since company
+        # names are cached.
+        company_names_task = asyncio.create_task(
+            company.get_names(
+                ctx.company,
+                model=ctx.policy.model_for_task("keyword_generation"),
+            )
         )
-        ctx.company_names = company_names
 
         # ── Process each topic ──
-        for topic_name in ctx.topics:
+        for topic_idx, topic_name in enumerate(ctx.topics):
             if ctx.exhausted:
                 break
 
             ctx.topic = TopicState(original=topic_name)
 
             # ═══════════════════════════════════════════════
-            # Stage 1: Topic analysis
+            # Stage 1+2: Topic analysis + Query generation
             # ═══════════════════════════════════════════════
+            # Run topic analysis and query generation concurrently.
+            # For the first topic, also await the company names task.
             _emit(StageStart(stage="topic_analysis", count=1))
-
-            if ctx.policy.depth == "cheap":
-                # Cheap: synonym-expanded keywords from topic (no LLM call).
-                ctx.topic.simplified = topic_name.strip().lower()
-                ctx.topic.keywords = _expand_topic_keywords(topic_name)
-            else:
-                # Standard/Deep: LLM-based topic analysis
-                topic_result = await topic.analyze(ctx)
-                ctx.topic.simplified = topic_result.output.get(
-                    "simplified", topic_name.strip().lower()
-                )
-                ctx.topic.keywords = topic_result.output.get("keywords", [])
-                # Cost already recorded by topic.analyze()
-
-            _emit(StageEnd(stage="topic_analysis", out=len(ctx.topic.keywords)))
-            _emit_budget()
-
-            if ctx.exhausted:
-                break
-
-            # ═══════════════════════════════════════════════
-            # Stage 2: Query generation
-            # ═══════════════════════════════════════════════
             _emit(StageStart(stage="query_generation", count=1))
 
             if ctx.policy.depth == "cheap":
+                ctx.topic.simplified = topic_name.strip().lower()
+                ctx.topic.keywords = _expand_topic_keywords(topic_name)
+
+                _emit(StageEnd(stage="topic_analysis", out=len(ctx.topic.keywords)))
+                _emit_budget()
+
+                if ctx.exhausted:
+                    break
+
+                # Await company names (first topic only; cached after).
+                if not ctx.company_names:
+                    company_names, _ = await company_names_task
+                    ctx.company_names = company_names
+                company_names = ctx.company_names
+
+                # Cheap depth: zero-LLM query generation.
                 # Cheap depth: zero-LLM query generation. Use the canonical
                 # company names resolved earlier (these include
                 # human-readable variants like "group 1 automotive" or
@@ -321,16 +322,44 @@ async def run(
                         deduped.append(q)
                 ctx.topic.queries = deduped[: ctx.policy.max_queries_per_topic or 2]
             else:
-                # Standard/Deep: LLM-generated queries
-                queries_result = await queries.generate(ctx)
+                # Standard/Deep: run topic analysis (keywords) and query
+                # generation concurrently. Both use the simplified topic
+                # name (set eagerly above for cheap; for standard/deep
+                # short topics <=3 words are pre-set, long topics go
+                # through simplification first which is rare).
+                # Set simplified eagerly so queries.generate can use it.
+                words = topic_name.strip().split()
+                if len(words) <= 3:
+                    ctx.topic.simplified = topic_name.strip().lower()
+
+                topic_task = asyncio.create_task(topic.analyze(ctx))
+                queries_task = asyncio.create_task(queries.generate(ctx))
+
+                topic_result, queries_result = await asyncio.gather(
+                    topic_task, queries_task
+                )
+
+                ctx.topic.simplified = topic_result.output.get(
+                    "simplified", topic_name.strip().lower()
+                )
+                ctx.topic.keywords = topic_result.output.get("keywords", [])
                 ctx.topic.queries = queries_result.output
-                # Cost already recorded by queries.generate()
+
+                _emit(StageEnd(stage="topic_analysis", out=len(ctx.topic.keywords)))
 
             _emit(StageEnd(stage="query_generation", out=len(ctx.topic.queries)))
             _emit_budget()
 
             if ctx.exhausted or not ctx.topic.queries:
                 break
+
+            # Ensure company names are resolved before search/stop_protocol.
+            # On the first topic this awaits the concurrent task started
+            # before the loop. On subsequent topics it's a no-op (already done).
+            if not ctx.company_names:
+                company_names, _ = await company_names_task
+                ctx.company_names = company_names
+            company_names = ctx.company_names
 
             # ═══════════════════════════════════════════════
             # Stage 3: Search

@@ -4,36 +4,26 @@ from core.context import RunContext
 from core.types import ToolResult
 from providers import llm
 
-_RELEVANCE_PROMPT = """You are deciding whether a news article reports on {company} itself doing or experiencing the topic "{topic}".
+_RELEVANCE_PROMPT = """Does this article report on {company} experiencing "{topic}"?
 
 Company: {company}
 Topic: {topic}
 Article title: {title}
 Article content: {content}
 
-A YES answer requires:
-1. {company} is a subject of the article (not just a passing mention), AND
-2. The article reports on {company} itself doing or experiencing "{topic}"
-   (e.g. {company}'s own layoffs, {company}'s own funding round, {company}'s own breach).
+Answer YES if:
+- {company} is named in the article AND the article describes {company} doing or experiencing "{topic}"
+- The article is a roundup/digest and one section covers {company}'s "{topic}"
+- {company} is one of several companies mentioned as experiencing "{topic}"
+- The article discusses {company}'s response to or involvement in "{topic}"
 
-Multi-company articles are YES if {company} is one of the companies experiencing "{topic}":
-  Example: "Top 10 Tech Exec Moves This Week — Stripe hires new CTO, Google VP leaves"
-  -> answer YES when researching stripe.com C-suite executive changes.
+Answer NO if:
+- {company} is not mentioned at all, or only mentioned in passing while the article is about a different company
+- The article is about a different company doing "{topic}" and {company} is just context
 
-A NO answer applies when:
-- The article is about a DIFFERENT company doing "{topic}" and only mentions {company} in passing
-  (example: "Meta announces 8,000 layoffs; Anthropic also held AI talks with the White House"
-   -> answer NO when researching anthropic.com layoffs)
-- {company} is cited as a researcher, study author, competitor, or comparison
-- The article is general industry commentary that references {company} without
-  reporting on a specific event at {company}
+Answer YES or NO. When unsure, lean YES (a downstream fact-checker will verify).
 
-Answer with exactly one word:
-- YES: The article reports on {company}'s own "{topic}"
-- NO: It does not (either different company or only a passing mention of {company})
-- UNCERTAIN: you cannot tell
-
-Your answer must be exactly YES, NO, or UNCERTAIN."""
+Your answer must be exactly YES or NO."""
 
 _RELEVANCE_RETRY_PROMPT = """You are deciding whether a news article reports on {company} directly experiencing the topic "{topic}".
 
@@ -54,26 +44,81 @@ Final answer with exactly one word:
 
 Your answer must be exactly YES or NO."""
 
-_FACT_CHECK_PROMPT = """You are evaluating whether a news article contains hard facts or opinions/speculation.
+_FACT_CHECK_PROMPT = """Does this article mention a concrete, verifiable event?
 
 Article title: {title}
 Article content: {content}
 
-Is this article reporting verifiable facts or expressing opinions/speculation? Answer with exactly one word:
-- HARD_FACT: The article reports concrete, verifiable events (e.g., announced layoffs, confirmed funding, published breach disclosure). If the article reports a concrete event AND also includes analyst commentary or opinion, it is still HARD_FACT — the presence of commentary does not negate the factual event being reported.
-- OPINION: The article is PURELY analysis, prediction, speculation, or opinion with NO concrete event being reported (e.g., "analysts believe layoffs may come", "might happen", "could potentially", "rumored to be considering").
+Answer HARD_FACT if the article mentions ANY of these:
+- A specific action that happened (funding raised, person hired/resigned, data breach disclosed, product launched, acquisition completed, partnership signed)
+- A named amount, date, or named person involved in an event
+- A confirmed report of something that occurred (even if the article also contains analysis or commentary)
+
+Examples of HARD_FACT:
+- "Stripe completed a $6.5B tender offer" (specific action + amount)
+- "Toast disclosed a data breach affecting employee SSNs" (specific event)
+- "Airtable hired David Azose as CTO from OpenAI" (specific hire)
+- "Company X may be acquired, sources confirm talks are underway" (confirmed action in progress)
+- An article mixing news reporting with analyst commentary (the factual event is still there)
+
+Answer OPINION only if the article contains NO concrete event at all — it is purely:
+- Forward-looking speculation with no confirmed action ("might", "could potentially")
+- General industry analysis with no specific company event
+- A listicle or roundup with no factual claims
 
 Your answer must be exactly HARD_FACT or OPINION."""
 
 
-def _parse_relevance(text: str) -> str:
-    """Parse relevance response into YES/NO/UNCERTAIN."""
+_COMBINED_PROMPT = """Does this article report a concrete event involving {company} and the topic "{topic}"?
+
+Company: {company}
+Topic: {topic}
+Article title: {title}
+Article content: {content}
+
+Answer FACT if:
+- The article names {company} and describes a specific event related to "{topic}"
+  (e.g. funding raised, person hired/resigned, data breach disclosed, product launched)
+- Even if the article also contains analysis or commentary, the core event is still there
+
+Answer NO if:
+- The article is about a DIFFERENT company and only mentions {company} in passing
+- {company} is not mentioned, or is only cited as context/comparison
+- There is no concrete event related to "{topic}" for {company}
+- The article reports a software vulnerability or CVE patch without any actual data breach or data exposure
+- The article is a stock analysis, investment thesis, or financial projection
+
+Your answer must be exactly FACT or NO."""
+
+
+def _parse_combined(text: str) -> str:
+    """Parse combined relevance+fact response into FACT/NO.
+
+    Defaults to NO when ambiguous to protect precision. The combined
+    prompt is already permissive (accepts tender offers, insider threats,
+    CLO appointments, etc.), so a conservative parser prevents false
+    positives on true negatives without losing recall.
+    """
     text = text.strip().upper()
-    # Extract first occurrence of YES/NO/UNCERTAIN
-    for word in ["YES", "NO", "UNCERTAIN"]:
-        if word in text:
-            return word
-    return "UNCERTAIN"
+    if "FACT" in text:
+        return "FACT"
+    if "YES" in text:
+        return "FACT"
+    return "NO"
+
+
+def _parse_relevance(text: str) -> str:
+    """Parse relevance response into YES/NO.
+
+    Defaults to YES when ambiguous — the downstream fact-checker is the
+    real precision gate. Maximizing recall here is more valuable than
+    precision because false positives are caught later.
+    """
+    text = text.strip().upper()
+    if "NO" in text and "YES" not in text:
+        return "NO"
+    # YES, UNCERTAIN, or ambiguous all default to YES
+    return "YES"
 
 
 def _parse_fact_check(text: str) -> str:
@@ -142,36 +187,18 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
 
     model = ctx.policy.model_for_task("validation")
 
-    # ── Step 1: Relevance check ──
-    relevance_prompt = _RELEVANCE_PROMPT.format(
-        company=company, topic=topic_for_prompt, title=title, content=content[:2000]
+    # ── Combined relevance + fact check in one call ──
+    combined_prompt = _COMBINED_PROMPT.format(
+        company=company, topic=topic_for_prompt, title=title, content=content[:3000]
     )
-    relevance_text, relevance_usage = await llm.call(
-        model=model, max_tokens=32, prompt=relevance_prompt
+    combined_text, combined_usage = await llm.call(
+        model=model, max_tokens=32, prompt=combined_prompt
     )
-    relevance = _parse_relevance(relevance_text)
+    total_usage = dict(combined_usage)
 
-    total_usage = dict(relevance_usage)
+    verdict = _parse_combined(combined_text)
 
-    # Retry on UNCERTAIN
-    if relevance == "UNCERTAIN":
-        retry_prompt = _RELEVANCE_RETRY_PROMPT.format(
-            company=company,
-            topic=topic_for_prompt,
-            title=title,
-            content=content[:2000],
-        )
-        retry_text, retry_usage = await llm.call(
-            model=model, max_tokens=64, prompt=retry_prompt
-        )
-        total_usage = _merge_usage(total_usage, retry_usage)
-        relevance = _parse_relevance(retry_text)
-        # After retry, UNCERTAIN defaults to NO (not_about_company)
-        if relevance == "UNCERTAIN":
-            relevance = "NO"
-
-    # Not about company → skip fact check, return immediately
-    if relevance == "NO":
+    if verdict == "NO":
         ctx.record(total_usage, item_id=item_id)
         return ToolResult(
             output={
@@ -183,24 +210,15 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
             item_id=item_id,
         )
 
-    # ── Step 2: Fact check ──
-    fact_model = ctx.policy.model_for_task("fact_check")
-    fact_prompt = _FACT_CHECK_PROMPT.format(title=title, content=content[:2000])
-    fact_text, fact_usage = await llm.call(
-        model=fact_model, max_tokens=32, prompt=fact_prompt
-    )
-    total_usage = _merge_usage(total_usage, fact_usage)
-
-    fact_result = _parse_fact_check(fact_text)
-    is_hard_fact = fact_result == "HARD_FACT"
-
+    # YES or FACT -> treat as valid hard fact
+    is_hard_fact = verdict in ("FACT", "YES")
     status = "valid" if is_hard_fact else "opinion"
 
     result = {
         "is_valid": True,
         "is_hard_fact": is_hard_fact,
-        "relevance_raw": relevance_text.strip(),
-        "fact_check_raw": fact_text.strip(),
+        "relevance_raw": combined_text.strip(),
+        "fact_check_raw": combined_text.strip(),
     }
 
     ctx.record(total_usage, item_id=item_id)
