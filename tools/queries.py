@@ -87,9 +87,9 @@ Now generate queries for company "{company}", topic "{topic}":"""
 async def generate(ctx: RunContext) -> ToolResult:
     """Generate search queries for the current company and topic.
 
-    Calls LLM with topic-specific trigger words baked into the prompt,
-    then runs a deterministic post-processor that auto-wraps the brand
-    name in quotes for any query that forgot to do so.
+    Constructs deterministic trigger-word queries first (guaranteed to
+    match how journalists report the event), then supplements with
+    LLM-generated queries for diversity. Merges and deduplicates.
 
     Returns:
         ToolResult with output=list[str], capped at policy.max_queries_per_topic.
@@ -105,12 +105,71 @@ async def generate(ctx: RunContext) -> ToolResult:
         return ToolResult(output=[f"{company} {topic}".strip()])
 
     n_queries = ctx.policy.max_queries_per_topic
-    model = ctx.policy.model_for_task("query_generation")
     current_year = str(datetime.now().year)
     trigger_words = _trigger_words_for_topic(topic)
 
-    # Cache key includes trigger words so different topics get fresh queries
-    cache_key = f"queries:{company}:{topic}:{n_queries}:{model}:v2"
+    # Deterministic queries from trigger words (guaranteed to match event language).
+    deterministic = _build_deterministic_queries(company, topic, trigger_words, current_year)
+
+    # Supplement with LLM-generated queries for diversity.
+    llm_queries, usage = await _fetch_llm_queries(
+        company, topic, n_queries, trigger_words, current_year, ctx
+    )
+
+    # Merge: deterministic first (highest signal), then LLM diversity.
+    all_queries = deterministic + llm_queries
+
+    # Phrase-quote safety net + deduplicate.
+    brand_tokens = _brand_phrase_candidates(company)
+    all_queries = [_enforce_phrase_quoting(q, brand_tokens) for q in all_queries]
+    all_queries = _dedupe_preserving_order(all_queries)
+
+    all_queries = all_queries[:n_queries]
+
+    ctx.record(usage)
+    return ToolResult(output=all_queries, usage=usage)
+
+
+def _build_deterministic_queries(
+    company: str, topic: str, trigger_words: str, current_year: str
+) -> list[str]:
+    """Build guaranteed queries from trigger words, no LLM needed.
+
+    Constructs 4 queries covering:
+    1. Direct topic match
+    2. Trigger word cluster (the key query)
+    3. Temporal anchor
+    4. Short high-precision variant
+
+    ALWAYS quotes the company name — even single-word brands like
+    "stripe" or "toast" — because Bing News otherwise matches them
+    as common English words ("magnetic stripe", "french toast").
+    """
+    brand = f'"{company}"'
+
+    # Parse trigger words into individual terms for the short variant
+    tw_terms = trigger_words.replace('"', "").split(" OR ")
+    short_terms = " OR ".join(tw_terms[:4])
+
+    return [
+        f"{brand} {topic}",
+        f"{brand} ({trigger_words})",
+        f"{brand} {topic} {current_year}",
+        f"{brand} ({short_terms})",
+    ]
+
+
+async def _fetch_llm_queries(
+    company: str,
+    topic: str,
+    n_queries: int,
+    trigger_words: str,
+    current_year: str,
+    ctx: RunContext,
+) -> tuple[list[str], dict]:
+    """Get LLM-generated queries with trigger words in the prompt."""
+    model = ctx.policy.model_for_task("query_generation")
+    cache_key = f"queries:{company}:{topic}:{n_queries}:{model}:v3"
 
     async def _fetch() -> tuple[list[str], dict]:
         prompt = _QUERY_PROMPT.format(
@@ -120,28 +179,14 @@ async def generate(ctx: RunContext) -> ToolResult:
             trigger_words=trigger_words,
             current_year=current_year,
         )
-        text, usage = await llm.call(model=model, max_tokens=512, prompt=prompt)
-        parsed = _parse_query_list(text)
-        return parsed, usage
+        # Cap LLM queries to leave room for deterministic ones
+        text, usage_data = await llm.call(
+            model=model, max_tokens=512, prompt=prompt
+        )
+        parsed = _parse_query_list(text)[: n_queries - 4]
+        return parsed, usage_data
 
-    queries, usage = await _query_cache.get_or_compute(cache_key, _fetch)
-
-    # Deterministic safety net: always phrase-quote the brand.
-    brand_tokens = _brand_phrase_candidates(company)
-    queries = [_enforce_phrase_quoting(q, brand_tokens) for q in queries]
-
-    queries = _dedupe_preserving_order(queries)
-
-    if not queries:
-        if " " in company:
-            queries = [f'"{company}" {topic}']
-        else:
-            queries = [f"{company} {topic}"]
-
-    queries = queries[:n_queries]
-
-    ctx.record(usage)
-    return ToolResult(output=queries, usage=usage)
+    return await _query_cache.get_or_compute(cache_key, _fetch)
 
 
 # ── Helpers ──

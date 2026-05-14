@@ -26,11 +26,11 @@ _client: httpx.AsyncClient | None = None
 _semaphore: asyncio.Semaphore | None = None
 SEARXNG_URL: str = "http://localhost:8888"
 SEARCH_CONCURRENCY: int = 12
-# Default to bing news only — the most reliable engine under rate pressure.
-# Google and Brave can be added ("bing news,google,brave") when traffic is
-# moderate, but both are fragile: Google blocks SearXNG instances after
-# moderate request volume (#2515), Brave triggers bot detection (#2616).
-SEARCH_ENGINES: str = "bing news"
+# Google is the primary engine for company-specific research — Bing News
+# lacks the recall for targeted queries (returns unrelated noise). Google
+# auto-suspends for 180s on 403 errors, then recovers. Use bing news as
+# fallback when Google is suspended.
+SEARCH_ENGINES: str = "google, bing news"
 
 # Circuit breaker state
 _consecutive_failures = 0
@@ -59,7 +59,7 @@ async def init() -> None:
     global _client, _semaphore, SEARXNG_URL, SEARCH_CONCURRENCY, SEARCH_ENGINES
     SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8888")
     SEARCH_CONCURRENCY = int(os.environ.get("SEARCH_CONCURRENCY", "12"))
-    SEARCH_ENGINES = os.environ.get("SEARCH_ENGINES", "bing news")
+    SEARCH_ENGINES = os.environ.get("SEARCH_ENGINES", "google, bing news")
     if _client is None:
         _client = httpx.AsyncClient(timeout=SEARCH_TIMEOUT)
     if _semaphore is None:
