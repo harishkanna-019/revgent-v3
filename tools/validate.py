@@ -1,8 +1,23 @@
 """Validation tool: company relevance check + fact check via LLM."""
 
+from urllib.parse import urlparse
+
 from core.context import RunContext
 from core.types import ToolResult
 from providers import llm
+
+# Source domains that are investment directories / aggregation sites,
+# not news outlets. Articles from these domains are rejected without
+# an LLM call — they merely list funding data without reporting events.
+_AGGREGATION_DOMAINS = frozenset({
+    "tracxn.com",
+    "texau.com",
+    "forgeglobal.com",
+    "crunchbase.com",
+    "pitchbook.com",
+    "angellist.com",
+    "cbinsights.com",
+})
 
 _RELEVANCE_PROMPT = """Does this article report on {company} experiencing "{topic}"?
 
@@ -87,12 +102,6 @@ Answer NO if:
 - There is no concrete event related to "{topic}" for {company}
 - The article reports a software vulnerability or CVE patch without any actual data breach or data exposure
 - The article is a stock analysis, investment thesis, or financial projection
-- The article is from an investment directory or aggregation site (Tracxn, TexAu, Forge Global,
-  Crunchbase, PitchBook, AngelList) that merely lists funding info without reporting a news event
-- The article is a news roundup that names {company} but the actual event is about a different company
-  (e.g. "Tech Moves: Syndio names 7 execs" — Stripe is just listed in passing)
-- A founder of {company} is raising money for a DIFFERENT company
-  (e.g. "6sense founder raises $30M for new startup" is NOT about 6sense funding)
 
 Your answer must be exactly FACT or NO."""
 
@@ -190,6 +199,26 @@ async def validate_one(ctx: RunContext, candidate: dict) -> ToolResult:
     content = candidate.get("content", "")
     url = candidate.get("url", "")
     item_id = url or candidate.get("title", "")[:50]
+
+    # Mechanical source-domain block: reject known aggregation directories
+    # without spending an LLM call. Tracxn, TexAu, Crunchbase, etc. list
+    # investment data but don't report news events.
+    if url:
+        try:
+            domain = urlparse(url).netloc.lower().replace("www.", "")
+            for agg_domain in _AGGREGATION_DOMAINS:
+                if domain == agg_domain or domain.endswith("." + agg_domain):
+                    return ToolResult(
+                        output={
+                            "result": None,
+                            "status": "not_about_company",
+                            "original": candidate,
+                        },
+                        usage={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                        item_id=item_id,
+                    )
+        except Exception:
+            pass
 
     model = ctx.policy.model_for_task("validation")
 
