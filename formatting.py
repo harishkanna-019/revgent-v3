@@ -112,11 +112,16 @@ def format_event(
         except Exception:
             source_name = url
 
+    # Resolve date: try published_date first, fall back to content extraction.
+    date = parse_date(published_date) if published_date else "Unknown"
+    if date == "Unknown" and content:
+        date = extract_date_from_content(content)
+
     return {
         "headline": title,
         "description": summary if summary is not None else content[:400],
         "topic": "",
-        "date": parse_date(published_date) if published_date else "Unknown",
+        "date": date,
         "source_name": source_name,
         "source_url": url,
         "content_type": content_type,
