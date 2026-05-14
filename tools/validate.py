@@ -87,6 +87,12 @@ Answer NO if:
 - There is no concrete event related to "{topic}" for {company}
 - The article reports a software vulnerability or CVE patch without any actual data breach or data exposure
 - The article is a stock analysis, investment thesis, or financial projection
+- The article is from an investment directory or aggregation site (Tracxn, TexAu, Forge Global,
+  Crunchbase, PitchBook, AngelList) that merely lists funding info without reporting a news event
+- The article is a news roundup that names {company} but the actual event is about a different company
+  (e.g. "Tech Moves: Syndio names 7 execs" — Stripe is just listed in passing)
+- A founder of {company} is raising money for a DIFFERENT company
+  (e.g. "6sense founder raises $30M for new startup" is NOT about 6sense funding)
 
 Your answer must be exactly FACT or NO."""
 

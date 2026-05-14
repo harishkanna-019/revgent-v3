@@ -604,6 +604,17 @@ async def run(
                     ctx.signals.append(decision.signal)
                 # discard: do nothing
 
+            # Stamp company_name on all events so Clay can match events
+            # to the right company. Use longest multi-word variant for specificity.
+            if ctx.company_names:
+                preferred_name = [n for n in ctx.company_names if " " in n] or ctx.company_names[:1]
+            else:
+                preferred_name = [ctx.company]
+            for e in ctx.events:
+                e["company_name"] = preferred_name[0]
+            for s in ctx.signals:
+                s["company_name"] = preferred_name[0]
+
             _emit(StageEnd(stage="format_route", out=len(ctx.events)))
             _emit_budget()
 
