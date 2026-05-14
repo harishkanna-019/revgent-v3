@@ -79,10 +79,10 @@ class ResearchDepthPolicy:
                 },
             },
             "standard": {
-                "max_candidates_per_topic": 10,
+                "max_candidates_per_topic": 8,
                 "max_queries_per_topic": 5,
                 "max_extraction_chars": 4000,
-                "max_full_extraction_candidates": 8,
+                "max_full_extraction_candidates": 6,
                 "default_budget": 0.50,
                 "max_workers": 8,
                 "model_map": {

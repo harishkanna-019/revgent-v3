@@ -547,6 +547,17 @@ async def run(
                 else:
                     pending.append((-1, decision, candidate))
 
+            # Cap event-lane formatting at 5 candidates. The answer_builder
+            # only uses the top 2-3 events (by content_type rank + date), so
+            # formatting more than 5 wastes LLM calls.
+            max_format = 5
+            if len(to_format) > max_format:
+                to_format = to_format[:max_format]
+                pending = [
+                    (idx, dec, cand) if idx < max_format else (-1, dec, cand)
+                    for idx, dec, cand in pending
+                ]
+
             # Parallel LLM format pass for event-lane candidates (standard/deep only).
             formatted_events: list[dict | None] = [None] * len(to_format)
             if to_format:
