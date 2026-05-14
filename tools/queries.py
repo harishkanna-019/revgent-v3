@@ -141,11 +141,17 @@ def _build_deterministic_queries(
     3. Temporal anchor
     4. Short high-precision variant
 
-    ALWAYS quotes the company name — even single-word brands like
-    "stripe" or "toast" — because Bing News otherwise matches them
-    as common English words ("magnetic stripe", "french toast").
+    ALWAYS quotes the company name after stripping TLDs — even
+    single-word brands like "stripe" or "toast" — because Google
+    otherwise matches them as common English words.
     """
-    brand = f'"{company}"'
+    # Strip TLD from domain-format company names
+    name = company.lower().strip()
+    for tld in (".com", ".io", ".co", ".net", ".org", ".ai", ".app"):
+        if name.endswith(tld):
+            name = name[: -len(tld)]
+            break
+    brand = f'"{name}"'
 
     # Parse trigger words into individual terms for the short variant
     tw_terms = trigger_words.replace('"', "").split(" OR ")
